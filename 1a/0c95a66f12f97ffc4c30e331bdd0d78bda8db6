@@ -1,0 +1,65 @@
+src/core.rs
+  s_7bc77c312083da::t_1ffc4efbc293ee 28-35,306-309,312,315,318,322,333-336,340-362,383-387,408-411
+  s_7bc77c312083da::t_33c889e48a8291 89-106,220-236,314,316-317,319,321,323-330
+landing/src/content/site.ru.ts
+  s_7bc77c312083da::t_8a906b0567c293 161,174,335
+README.md
+  s_7bc77c312083da::t_d48ed95d080176 44,64,256,282-297,318,322
+  s_7bc77c312083da::t_08c27889894f22 63,65-66
+  s_7bc77c312083da::t_8a906b0567c293 418,431
+landing/src/content/loadSiteContent.ts
+  s_7bc77c312083da::t_8a906b0567c293 108,222
+landing/package.json
+  s_7bc77c312083da::t_8a906b0567c293 4
+examples/tauri-app/package.json
+  s_7bc77c312083da::t_8a906b0567c293 4
+  s_7bc77c312083da::t_8cb69ab60caf80 14-15,18
+Cargo.toml
+  s_7bc77c312083da::t_8a906b0567c293 3
+server/README.md
+  s_7bc77c312083da::t_8a906b0567c293 69
+examples/tauri-app/src-tauri/Cargo.toml
+  s_7bc77c312083da::t_8a906b0567c293 3
+scripts-src/ota-publish.ts
+  s_7bc77c312083da::t_9b25dfc15f8d72 232,254-265,356-357,370
+  s_7bc77c312083da::t_ca5335129ff01a 10,60-64,164-225,440-441,465-466
+examples/tauri-app/src-tauri/tauri.conf.json
+  s_7bc77c312083da::t_8a906b0567c293 3
+examples/tauri-app/src/main.js
+  s_7bc77c312083da::t_00c8f125689a50 2-3,5
+.github/workflows/ota-publish.yml
+  s_7bc77c312083da::t_8a906b0567c293 13,187,231,268
+scripts/ota-publish.cjs
+  s_7bc77c312083da::t_806c61095e4f27 43259,43278-43287,43362,43373
+  s_7bc77c312083da::t_64fa0b7bfb2c7e 43111-43114,43203-43253,43429,43449-43450
+landing/src/content/site.en.ts
+  s_7bc77c312083da::t_8a906b0567c293 170,183,376
+package.json
+  s_7bc77c312083da::t_8a906b0567c293 3
+examples/tauri-app/vite.config.js
+  s_7bc77c312083da::t_1dc20d27b6bdc4 2,8
+examples/tauri-app/index.html
+  s_7bc77c312083da::t_e5fb7f016ed8b4 7
+pnpm-lock.yaml
+  ai_agent 36-38,43-45,2295-2300,2355-2360,2928-2936
+examples/tauri-app/src/App.vue
+  s_7bc77c312083da::t_b648c41821912c 1-103
+action.yml
+  s_7bc77c312083da::t_c7c08f2f4b83d0 2,10,47-62,104-107
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "1a0c95a66f12f97ffc4c30e331bdd0d78bda8db6",
+  "prompts": {},
+  "sessions": {
+    "s_7bc77c312083da": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "a0b4a00c-7217-48eb-b7ee-47f6b3bf7584",
+        "model": "default"
+      },
+      "human_author": "Pavel Kuzmin <Virus191288@gmail.com>"
+    }
+  }
+}
