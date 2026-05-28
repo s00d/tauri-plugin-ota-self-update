@@ -1,0 +1,61 @@
+landing/src/views/PageView.vue
+  s_7bc77c312083da::t_1531121ad9f78c 1-24
+landing/tsconfig.json
+  s_7bc77c312083da::t_1531121ad9f78c 1-12
+pnpm-workspace.yaml
+  s_7bc77c312083da::t_60b7b7fd11de63 4
+README.md
+  s_7bc77c312083da::t_18cfd2c197620f 63-70
+  s_7bc77c312083da::t_edf8e47772e11e 29-33,396-416
+  s_7bc77c312083da::t_22ffde0bc1efa1 143-192
+landing/index.html
+  s_7bc77c312083da::t_1531121ad9f78c 1-12
+landing/src/content/types.ts
+  s_7bc77c312083da::t_1531121ad9f78c 1-21
+landing/src/router/index.ts
+  s_7bc77c312083da::t_1531121ad9f78c 1-34
+landing/vite.config.ts
+  s_7bc77c312083da::t_1531121ad9f78c 1-8
+landing/src/content/locales.ts
+  s_7bc77c312083da::t_1531121ad9f78c 1-6
+landing/src/App.vue
+  s_7bc77c312083da::t_1531121ad9f78c 1-18
+pnpm-lock.yaml
+  ai_agent 39,48-76,230-246,731-820,940-978,1043-1045,1081-1088,1179-1181,1215-1218,1463-1469,1492-1496,1564-1576,1855-1867,2191,2197-2266,2371-2432,2486-2487,2510-2516,2655-2656,2689-2690,2975-2978,3006-3007,3016,3026,3028-3043,3045
+landing/src/main.ts
+  s_7bc77c312083da::t_1531121ad9f78c 1-6
+landing/src/content/loadSiteContent.ts
+  s_7bc77c312083da::t_1531121ad9f78c 1-15
+.github/workflows/landing-pages.yml
+  s_7bc77c312083da::t_b026cc17889c9f 1-53
+landing/src/content/site.en.ts
+  s_7bc77c312083da::t_1531121ad9f78c 1-88
+landing/src/content/site.ru.ts
+  s_7bc77c312083da::t_1531121ad9f78c 1-88
+landing/src/style.css
+  s_7bc77c312083da::t_1531121ad9f78c 1-25
+landing/package.json
+  s_7bc77c312083da::t_1531121ad9f78c 1-23
+landing/scripts/copy-spa-fallback.mjs
+  s_7bc77c312083da::t_1531121ad9f78c 1-21
+landing/src/components/layout/SiteHeader.vue
+  s_7bc77c312083da::t_1531121ad9f78c 1-35
+package.json
+  s_7bc77c312083da::t_ef9225fefc7f36 37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "a3872736b50f23939c149067694c82c3bee16830",
+  "prompts": {},
+  "sessions": {
+    "s_7bc77c312083da": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "a0b4a00c-7217-48eb-b7ee-47f6b3bf7584",
+        "model": "default"
+      },
+      "human_author": "Pavel Kuzmin <Virus191288@gmail.com>"
+    }
+  }
+}
