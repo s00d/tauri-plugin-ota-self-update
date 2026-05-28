@@ -106,6 +106,8 @@ jobs:
           cache: "pnpm"
       - name: Install root dependencies
         run: pnpm install --frozen-lockfile=false
+      - name: Build JS API package
+        run: pnpm run build:api
       - name: Install example dependencies
         run: pnpm install --frozen-lockfile=false
         working-directory: examples/tauri-app
@@ -166,6 +168,8 @@ jobs:
             libssl-dev
       - name: Install root dependencies
         run: pnpm install --frozen-lockfile=false
+      - name: Build JS API package
+        run: pnpm run build:api
       - name: Install example dependencies
         run: pnpm install --frozen-lockfile=false
         working-directory: examples/tauri-app
