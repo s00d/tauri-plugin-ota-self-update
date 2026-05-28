@@ -1,0 +1,19 @@
+.github/workflows/ota-publish.yml
+  s_7bc77c312083da::t_897699bbf6e55a 55,102,142
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "ff459589f6be06d974c270f422974b98fa7b55a9",
+  "prompts": {},
+  "sessions": {
+    "s_7bc77c312083da": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "a0b4a00c-7217-48eb-b7ee-47f6b3bf7584",
+        "model": "default"
+      },
+      "human_author": "Pavel Kuzmin <Virus191288@gmail.com>"
+    }
+  }
+}
