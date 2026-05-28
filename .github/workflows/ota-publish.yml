@@ -1,0 +1,79 @@
+name: Action CI (ota-publish)
+
+on:
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: "OTA channel"
+        required: true
+        default: "stable"
+      version:
+        description: "OTA version"
+        required: true
+        default: "0.1.0"
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    env:
+      CARGO_TERM_COLOR: always
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Cargo check (desktop)
+        run: cargo check
+      - name: Cargo check example
+        run: cargo check --manifest-path examples/tauri-app/src-tauri/Cargo.toml
+
+  validate-action:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "pnpm"
+
+      - name: Install deps
+        run: pnpm install --frozen-lockfile=false
+
+      - name: Build JS API
+        run: pnpm run build
+
+      - name: Resolve CI defaults
+        id: vars
+        shell: bash
+        run: |
+          CHANNEL="${{ inputs.channel }}"
+          VERSION="${{ inputs.version }}"
+          if [ -z "$CHANNEL" ]; then CHANNEL="stable"; fi
+          if [ -z "$VERSION" ]; then VERSION="0.0.0-ci-${GITHUB_RUN_NUMBER}"; fi
+          echo "channel=$CHANNEL" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Prepare demo dist
+        run: |
+          mkdir -p dist
+          echo "<html><body>OTA ${{ steps.vars.outputs.version }}</body></html>" > dist/index.html
+
+      - name: Run local publish flow (server mode)
+        uses: ./
+        with:
+          mode: server
+          channel: ${{ steps.vars.outputs.channel }}
+          version: ${{ steps.vars.outputs.version }}
+          dist_dir: dist
+          out_dir: .ota-out
+          base_url: https://updates.example.com/ota
+          server_token: dry-run-token
+          dry_run: "true"
+

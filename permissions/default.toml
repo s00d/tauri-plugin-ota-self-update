@@ -1,0 +1,7 @@
+[default]
+description = "Default permissions for the plugin"
+permissions = [
+  "allow-check-for-updates",
+  "allow-apply-update",
+  "allow-set-channel"
+]

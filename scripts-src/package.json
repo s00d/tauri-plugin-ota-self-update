@@ -1,0 +1,19 @@
+{
+  "name": "@tauri-plugin-ota-self-update/scripts",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "pnpm exec esbuild ota-publish.ts --bundle --platform=node --packages=bundle --target=node20 --format=esm --outfile=../scripts/ota-publish.js"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.940.0",
+    "@octokit/rest": "^22.0.1",
+    "axios": "^1.13.2",
+    "tar": "^7.5.2"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "esbuild": "^0.25.12",
+    "typescript": "^6.0.0"
+  }
+}

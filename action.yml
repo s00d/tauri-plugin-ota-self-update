@@ -1,0 +1,89 @@
+name: "Tauri OTA Publisher"
+description: "Universal self-hosted OTA artifact publishing for Tauri apps (GitHub Releases, S3, custom server)."
+author: "s00d"
+branding:
+  icon: "upload-cloud"
+  color: "blue"
+
+inputs:
+  mode:
+    description: "Publish mode: github | s3 | server"
+    required: true
+  channel:
+    description: "OTA update channel name (for example: stable, beta)"
+    required: false
+    default: "stable"
+  version:
+    description: "OTA version string used in archive naming"
+    required: true
+  dist_dir:
+    description: "Directory containing built frontend artifacts"
+    required: false
+    default: "dist"
+  out_dir:
+    description: "Temporary output directory for manifest/archive"
+    required: false
+    default: ".ota-out"
+  base_url:
+    description: "Base URL for generated archive URL and server mode upload target"
+    required: false
+    default: ""
+  notes:
+    description: "Release notes text saved in generated manifest"
+    required: false
+    default: ""
+  target_repo:
+    description: "Target repository in owner/repo format (for github mode)"
+    required: false
+    default: ""
+  release_tag:
+    description: "Release tag to create/upload (github mode). Default: ota-<version>"
+    required: false
+    default: ""
+  github_token:
+    description: "GitHub token with releases write scope (github mode)"
+    required: false
+    default: ""
+  s3_bucket:
+    description: "S3 bucket name (s3 mode)"
+    required: false
+    default: ""
+  server_token:
+    description: "Bearer token used in server mode"
+    required: false
+    default: ""
+  manifest_signature:
+    description: "Base64 minisign signature for manifest bytes"
+    required: false
+    default: ""
+  archive_signature:
+    description: "Base64 minisign signature for archive bytes"
+    required: false
+    default: ""
+  dry_run:
+    description: "If true, prints commands without executing uploads"
+    required: false
+    default: "false"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Publish OTA artifacts
+      shell: bash
+      env:
+        OTA_PUBLISH_MODE: ${{ inputs.mode }}
+        OTA_CHANNEL: ${{ inputs.channel }}
+        OTA_VERSION: ${{ inputs.version }}
+        OTA_DIST_DIR: ${{ inputs.dist_dir }}
+        OTA_OUT_DIR: ${{ inputs.out_dir }}
+        OTA_BASE_URL: ${{ inputs.base_url }}
+        OTA_NOTES: ${{ inputs.notes }}
+        OTA_TARGET_REPO: ${{ inputs.target_repo }}
+        OTA_RELEASE_TAG: ${{ inputs.release_tag }}
+        OTA_GITHUB_TOKEN: ${{ inputs.github_token }}
+        OTA_S3_BUCKET: ${{ inputs.s3_bucket }}
+        OTA_SERVER_TOKEN: ${{ inputs.server_token }}
+        OTA_MANIFEST_SIGNATURE: ${{ inputs.manifest_signature }}
+        OTA_ARCHIVE_SIGNATURE: ${{ inputs.archive_signature }}
+        OTA_DRY_RUN: ${{ inputs.dry_run }}
+      run: node "${{ github.action_path }}/scripts/ota-publish.js"

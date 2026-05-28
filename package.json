@@ -1,0 +1,49 @@
+{
+  "name": "tauri-plugin-ota-self-update-api",
+  "version": "0.1.0",
+  "author": "s00d",
+  "description": "JavaScript API for tauri-plugin-ota-self-update - self-hosted OTA web asset updates for Tauri v2 apps.",
+  "license": "MIT OR Apache-2.0",
+  "type": "module",
+  "types": "./dist-js/index.d.ts",
+  "main": "./dist-js/index.cjs",
+  "module": "./dist-js/index.js",
+  "packageManager": "pnpm@9.15.9",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/s00d/tauri-plugin-ota-self-update.git"
+  },
+  "bugs": {
+    "url": "https://github.com/s00d/tauri-plugin-ota-self-update/issues"
+  },
+  "homepage": "https://github.com/s00d/tauri-plugin-ota-self-update#readme",
+  "exports": {
+    "types": "./dist-js/index.d.ts",
+    "import": "./dist-js/index.js",
+    "require": "./dist-js/index.cjs"
+  },
+  "files": [
+    "dist-js",
+    "README.md",
+    "scripts",
+    "scripts-src",
+    "action.yml"
+  ],
+  "scripts": {
+    "build:api": "rollup -c",
+    "build:scripts": "pnpm --filter @tauri-plugin-ota-self-update/scripts run build",
+    "build": "pnpm run build:api && pnpm run build:scripts",
+    "ota:publish": "node scripts/ota-publish.js",
+    "prepublishOnly": "pnpm run build",
+    "pretest": "pnpm run build"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.0.0"
+  },
+  "devDependencies": {
+    "@rollup/plugin-typescript": "^12.0.0",
+    "rollup": "^4.9.6",
+    "typescript": "^6.0.0",
+    "tslib": "^2.6.2"
+  }
+}
