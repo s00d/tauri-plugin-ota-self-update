@@ -1,3 +1,4 @@
 packages:
   - "scripts-src"
   - "examples/tauri-app"
+  - "landing"

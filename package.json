@@ -34,6 +34,7 @@
     "build:scripts": "pnpm --filter @tauri-plugin-ota-self-update/scripts run build",
     "build": "pnpm run build:api && pnpm run build:scripts",
     "example:dev": "pnpm --dir examples/tauri-app tauri dev",
+    "landing:dev": "pnpm --dir landing dev",
     "server:start": "node server/ota-server.cjs",
     "ota:publish": "node scripts/ota-publish.cjs",
     "prepublishOnly": "pnpm run build",

@@ -26,10 +26,11 @@ This project provides:
 6. [Rust-side access](#rust-side-access)
 7. [Publishing](#publishing)
 8. [GitHub Action](#github-action)
-9. [Permissions](#permissions)
-10. [Security](#security)
-11. [Development](#development)
-12. [License](#license)
+9. [Landing](#landing)
+10. [Permissions](#permissions)
+11. [Security](#security)
+12. [Development](#development)
+13. [License](#license)
 
 ---
 
@@ -58,6 +59,14 @@ This project provides:
 ---
 
 ## Installation
+
+### Automatic (recommended)
+
+From your **Tauri app root** (where `package.json` and the `tauri` script live):
+
+```bash
+pnpm run tauri add ota-self-update
+```
 
 ### Rust (`src-tauri/Cargo.toml`)
 
@@ -128,6 +137,56 @@ if (update) {
   if (applyResult.status === "appliedNow") {
     location.reload();
   }
+}
+```
+
+### Periodic check example
+
+```ts
+import { check, setChannel } from "tauri-plugin-ota-self-update-api";
+
+const CHECK_INTERVAL_MS = 15 * 60 * 1000; // every 15 minutes
+
+async function checkAndApplyUpdate() {
+  try {
+    await setChannel("stable");
+    const update = await check();
+    if (!update) return;
+
+    const result = await update.apply();
+    // For softReload policy, refresh immediately to use new assets.
+    if (result.status === "appliedNow") {
+      location.reload();
+    }
+  } catch (error) {
+    console.error("OTA periodic check failed:", error);
+  }
+}
+
+// run once on app start
+void checkAndApplyUpdate();
+// run periodically
+setInterval(() => {
+  void checkAndApplyUpdate();
+}, CHECK_INTERVAL_MS);
+```
+
+### Auto-update on startup example (silent)
+
+```ts
+import { check, setChannel } from "tauri-plugin-ota-self-update-api";
+
+export async function runStartupOta() {
+  await setChannel("stable");
+  const update = await check();
+  if (!update) return;
+
+  const result = await update.apply();
+  if (result.status === "appliedNow") {
+    // Soft reload policy: activate now.
+    location.reload();
+  }
+  // Next launch policy: no reload required, assets activate on next app start.
 }
 ```
 
@@ -331,6 +390,30 @@ The server stores:
 - `manifest/stable.json` and `manifest/beta.json`
 - `<channel>/ota-dist-<version>.tar.gz`
 - `releases.json` index (used by client to resolve latest stable/beta)
+
+---
+
+## Landing
+
+A dedicated multi-page landing is included in `landing/` with EN/RU translations.
+
+- Stack: Vue 3 + Vite + Tailwind CSS v4
+- i18n: content-driven (`site.en.ts` / `site.ru.ts`)
+- Main pages:
+  - Home
+  - Install
+  - Run
+  - Publish
+  - GitHub Action
+  - Server
+  - Troubleshooting
+- Local run:
+  - `pnpm --dir landing dev`
+- Build:
+  - `pnpm --dir landing build`
+- Deployment:
+  - Separate workflow: `.github/workflows/landing-pages.yml`
+  - Triggers: `workflow_dispatch` and version tags `v*`
 
 ---
 
