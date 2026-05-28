@@ -2193,10 +2193,10 @@
           "markdownDescription": "Denies the unminimize command without any pre-configured scope."
         },
         {
-          "description": "Default permissions for the plugin\n#### This default permission set includes:\n\n- `allow-check-for-updates`\n- `allow-apply-update`\n- `allow-set-channel`",
+          "description": "Default permissions for the plugin\n#### This default permission set includes:\n\n- `allow-check-for-updates`\n- `allow-apply-update`\n- `allow-set-channel`\n- `allow-get-current-version`\n- `allow-rollback-update`",
           "type": "string",
           "const": "ota-self-update:default",
-          "markdownDescription": "Default permissions for the plugin\n#### This default permission set includes:\n\n- `allow-check-for-updates`\n- `allow-apply-update`\n- `allow-set-channel`"
+          "markdownDescription": "Default permissions for the plugin\n#### This default permission set includes:\n\n- `allow-check-for-updates`\n- `allow-apply-update`\n- `allow-set-channel`\n- `allow-get-current-version`\n- `allow-rollback-update`"
         },
         {
           "description": "Enables the apply_update command without any pre-configured scope.",
@@ -2209,6 +2209,18 @@
           "type": "string",
           "const": "ota-self-update:allow-check-for-updates",
           "markdownDescription": "Enables the check_for_updates command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the get_current_version command without any pre-configured scope.",
+          "type": "string",
+          "const": "ota-self-update:allow-get-current-version",
+          "markdownDescription": "Enables the get_current_version command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the rollback_update command without any pre-configured scope.",
+          "type": "string",
+          "const": "ota-self-update:allow-rollback-update",
+          "markdownDescription": "Enables the rollback_update command without any pre-configured scope."
         },
         {
           "description": "Enables the set_channel command without any pre-configured scope.",
@@ -2227,6 +2239,18 @@
           "type": "string",
           "const": "ota-self-update:deny-check-for-updates",
           "markdownDescription": "Denies the check_for_updates command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_current_version command without any pre-configured scope.",
+          "type": "string",
+          "const": "ota-self-update:deny-get-current-version",
+          "markdownDescription": "Denies the get_current_version command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the rollback_update command without any pre-configured scope.",
+          "type": "string",
+          "const": "ota-self-update:deny-rollback-update",
+          "markdownDescription": "Denies the rollback_update command without any pre-configured scope."
         },
         {
           "description": "Denies the set_channel command without any pre-configured scope.",

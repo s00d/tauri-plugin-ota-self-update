@@ -7,6 +7,8 @@ Default permissions for the plugin
 - `allow-check-for-updates`
 - `allow-apply-update`
 - `allow-set-channel`
+- `allow-get-current-version`
+- `allow-rollback-update`
 
 ## Permission Table
 
@@ -65,6 +67,58 @@ Enables the check_for_updates command without any pre-configured scope.
 <td>
 
 Denies the check_for_updates command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`ota-self-update:allow-get-current-version`
+
+</td>
+<td>
+
+Enables the get_current_version command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`ota-self-update:deny-get-current-version`
+
+</td>
+<td>
+
+Denies the get_current_version command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`ota-self-update:allow-rollback-update`
+
+</td>
+<td>
+
+Enables the rollback_update command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`ota-self-update:deny-rollback-update`
+
+</td>
+<td>
+
+Denies the rollback_update command without any pre-configured scope.
 
 </td>
 </tr>

@@ -27,6 +27,11 @@ export interface CurrentVersion {
   source: 'native' | 'ota'
 }
 
+export interface RollbackResult {
+  rolledBack: boolean
+  effectiveVersion: string
+}
+
 export class Update {
   async apply(): Promise<ApplyResult> {
     return invoke<ApplyResult>('plugin:ota-self-update|apply_update')
@@ -48,4 +53,8 @@ export async function checkWithMeta(): Promise<CheckResult> {
 
 export async function getCurrentVersion(): Promise<CurrentVersion> {
   return invoke<CurrentVersion>('plugin:ota-self-update|get_current_version')
+}
+
+export async function rollbackUpdate(): Promise<RollbackResult> {
+  return invoke<RollbackResult>('plugin:ota-self-update|rollback_update')
 }

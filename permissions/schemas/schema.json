@@ -319,6 +319,30 @@
           "markdownDescription": "Denies the check_for_updates command without any pre-configured scope."
         },
         {
+          "description": "Enables the get_current_version command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-current-version",
+          "markdownDescription": "Enables the get_current_version command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_current_version command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-current-version",
+          "markdownDescription": "Denies the get_current_version command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the rollback_update command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-rollback-update",
+          "markdownDescription": "Enables the rollback_update command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the rollback_update command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-rollback-update",
+          "markdownDescription": "Denies the rollback_update command without any pre-configured scope."
+        },
+        {
           "description": "Enables the set_channel command without any pre-configured scope.",
           "type": "string",
           "const": "allow-set-channel",
@@ -331,10 +355,10 @@
           "markdownDescription": "Denies the set_channel command without any pre-configured scope."
         },
         {
-          "description": "Default permissions for the plugin\n#### This default permission set includes:\n\n- `allow-check-for-updates`\n- `allow-apply-update`\n- `allow-set-channel`",
+          "description": "Default permissions for the plugin\n#### This default permission set includes:\n\n- `allow-check-for-updates`\n- `allow-apply-update`\n- `allow-set-channel`\n- `allow-get-current-version`\n- `allow-rollback-update`",
           "type": "string",
           "const": "default",
-          "markdownDescription": "Default permissions for the plugin\n#### This default permission set includes:\n\n- `allow-check-for-updates`\n- `allow-apply-update`\n- `allow-set-channel`"
+          "markdownDescription": "Default permissions for the plugin\n#### This default permission set includes:\n\n- `allow-check-for-updates`\n- `allow-apply-update`\n- `allow-set-channel`\n- `allow-get-current-version`\n- `allow-rollback-update`"
         }
       ]
     }

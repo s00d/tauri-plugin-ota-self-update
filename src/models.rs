@@ -79,3 +79,10 @@ pub struct CurrentVersion {
   pub effective_version: String,
   pub source: String,
 }
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RollbackResult {
+  pub rolled_back: bool,
+  pub effective_version: String,
+}

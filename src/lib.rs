@@ -123,7 +123,8 @@ pub fn init<R: Runtime>(context: Context<R>) -> (TauriPlugin<R, Config>, Context
       commands::check_for_updates,
       commands::apply_update,
       commands::set_channel,
-      commands::get_current_version
+      commands::get_current_version,
+      commands::rollback_update
     ])
     .setup(move |app, api| {
       let ota_self_update = runtime::init(app, api, overlay_assets.clone(), embedded_assets)?;

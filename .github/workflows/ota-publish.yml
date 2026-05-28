@@ -10,7 +10,7 @@ on:
       version:
         description: "OTA version"
         required: true
-        default: "0.2.1"
+        default: "0.2.2"
       publish:
         description: "Publish OTA assets to current repo"
         required: true
@@ -132,7 +132,7 @@ jobs:
           name: tauri-app-dist
           path: dist
       - name: Publish example OTA assets to current repo
-        uses: s00d/tauri-plugin-ota-self-update@v0.2.1
+        uses: s00d/tauri-plugin-ota-self-update@v0.2.2
         with:
           mode: github
           channel: ${{ github.event.inputs.channel }}

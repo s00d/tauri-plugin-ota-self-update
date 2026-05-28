@@ -1,6 +1,6 @@
 {
   "name": "tauri-plugin-ota-self-update-api",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "author": "s00d",
   "description": "JavaScript API for tauri-plugin-ota-self-update - self-hosted OTA web asset updates for Tauri v2 apps.",
   "license": "MIT OR Apache-2.0",

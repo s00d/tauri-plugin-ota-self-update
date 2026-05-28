@@ -105,7 +105,7 @@ function enrichSections(base: SiteContent, locale: SiteLocale): SiteContent {
                 language: 'yaml',
                 title: 'Использование action',
                 value:
-                  '- uses: s00d/tauri-plugin-ota-self-update@v0.2.1\n  with:\n    release_status: released\n    target: github\n    version: ${{ github.ref_name }}'
+                  '- uses: s00d/tauri-plugin-ota-self-update@v0.2.2\n  with:\n    release_status: released\n    target: github\n    version: ${{ github.ref_name }}'
               }
             }
           ],
@@ -219,7 +219,7 @@ function enrichSections(base: SiteContent, locale: SiteLocale): SiteContent {
                 language: 'yaml',
                 title: 'Action usage',
                 value:
-                  '- uses: s00d/tauri-plugin-ota-self-update@v0.2.1\n  with:\n    release_status: released\n    target: github\n    version: ${{ github.ref_name }}'
+                  '- uses: s00d/tauri-plugin-ota-self-update@v0.2.2\n  with:\n    release_status: released\n    target: github\n    version: ${{ github.ref_name }}'
               }
             }
           ],

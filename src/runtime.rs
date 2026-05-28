@@ -41,4 +41,8 @@ impl<R: Runtime> OtaSelfUpdate<R> {
   pub async fn current_version(&self) -> Result<CurrentVersion> {
     self.core.current_version().await
   }
+
+  pub async fn rollback_update(&self) -> Result<RollbackResult> {
+    self.core.rollback_update().await
+  }
 }

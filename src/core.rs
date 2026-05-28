@@ -303,7 +303,7 @@ impl<R: Runtime> OtaCore<R> {
     cache_root.join("latest-manifest.meta.json")
   }
 
-  fn rollback_cached_update(&self, cache_root: &Path, reason: &str) {
+  fn rollback_cached_update_sync(&self, cache_root: &Path, reason: &str) {
     Self::log_warn(format!(
       "rolling back cached OTA payload; reason: {reason}"
     ));
@@ -327,6 +327,30 @@ impl<R: Runtime> OtaCore<R> {
     self.manifest_metadata.blocking_lock().take();
   }
 
+  async fn rollback_cached_update_async(&self, cache_root: &Path, reason: &str) {
+    Self::log_warn(format!(
+      "rolling back cached OTA payload; reason: {reason}"
+    ));
+
+    for path in [
+      Self::latest_manifest_path(cache_root),
+      Self::manifest_metadata_path(cache_root),
+      Self::latest_archive_path(cache_root),
+    ] {
+      if path.exists() {
+        if let Err(err) = fs::remove_file(&path) {
+          Self::log_warn(format!(
+            "failed to remove rollback file '{}': {err}",
+            path.display()
+          ));
+        }
+      }
+    }
+
+    self.assets.lock().unwrap().clear();
+    self.manifest_metadata.lock().await.take();
+  }
+
   fn base64_to_string(base64_string: &str) -> Result<String> {
     let decoded = base64::engine::general_purpose::STANDARD.decode(base64_string)?;
     Ok(std::str::from_utf8(&decoded)?.to_string())
@@ -348,10 +372,16 @@ impl<R: Runtime> OtaCore<R> {
     };
 
     let mut assets = HashMap::new();
-    let mut archive = tar::Archive::new(Cursor::new(archive_bytes));
+    let decoder = flate2::read::GzDecoder::new(Cursor::new(archive_bytes));
+    let mut archive = tar::Archive::new(decoder);
     let archive_out_dir = tempfile::tempdir_in(cache_root)?;
     archive.unpack(archive_out_dir.path())?;
-    let dist_dir = archive_out_dir.path().join("dist");
+    let preferred_dist_dir = archive_out_dir.path().join("dist");
+    let dist_dir = if preferred_dist_dir.is_dir() {
+      preferred_dist_dir
+    } else {
+      archive_out_dir.path().to_path_buf()
+    };
 
     for entry in walkdir::WalkDir::new(&dist_dir) {
       let entry = entry.map_err(|err| Error::Message(err.to_string()))?;
@@ -403,7 +433,7 @@ impl<R: Runtime> OtaCore<R> {
     let manifest_bytes = match fs::read(&manifest_path) {
       Ok(bytes) => bytes,
       Err(err) => {
-        self.rollback_cached_update(&cache_root, &format!("failed reading cached manifest: {err}"));
+        self.rollback_cached_update_sync(&cache_root, &format!("failed reading cached manifest: {err}"));
         return;
       }
     };
@@ -420,13 +450,13 @@ impl<R: Runtime> OtaCore<R> {
     {
       Some(value) => value,
       None => {
-        self.rollback_cached_update(&cache_root, "failed reading cached manifest metadata");
+        self.rollback_cached_update_sync(&cache_root, "failed reading cached manifest metadata");
         return;
       }
     };
     let pubkey = self.config.blocking_lock().pubkey.clone();
     if let Err(err) = Self::verify_signature(&pubkey, &manifest_bytes, &metadata.signature) {
-      self.rollback_cached_update(
+      self.rollback_cached_update_sync(
         &cache_root,
         &format!("cached manifest signature check failed: {err}"),
       );
@@ -436,7 +466,7 @@ impl<R: Runtime> OtaCore<R> {
     let archive_bytes = match fs::read(&archive_path) {
       Ok(bytes) => bytes,
       Err(err) => {
-        self.rollback_cached_update(&cache_root, &format!("failed reading cached archive: {err}"));
+        self.rollback_cached_update_sync(&cache_root, &format!("failed reading cached archive: {err}"));
         return;
       }
     };
@@ -450,7 +480,7 @@ impl<R: Runtime> OtaCore<R> {
         Self::log_info("cached OTA assets loaded on startup");
       }
       Err(err) => {
-        self.rollback_cached_update(&cache_root, &format!("failed loading cached OTA assets: {err}"));
+        self.rollback_cached_update_sync(&cache_root, &format!("failed loading cached OTA assets: {err}"));
       }
     }
   }
@@ -665,6 +695,20 @@ impl<R: Runtime> OtaCore<R> {
       ota_version,
       effective_version,
       source,
+    })
+  }
+
+  pub async fn rollback_update(&self) -> Result<RollbackResult> {
+    let _guard = self.manifest_operation_lock.lock().await;
+    let cache_root = self.cache_root()?;
+    self
+      .rollback_cached_update_async(&cache_root, "manual rollback requested")
+      .await;
+    self.pending_update.lock().await.take();
+    let native_version = self.app.package_info().version.to_string();
+    Ok(RollbackResult {
+      rolled_back: true,
+      effective_version: native_version,
     })
   }
 }

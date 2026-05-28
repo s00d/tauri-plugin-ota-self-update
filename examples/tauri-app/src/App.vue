@@ -1,7 +1,7 @@
 <script setup>
 import { ref } from "vue";
 import { invoke } from "@tauri-apps/api/core";
-import { check, checkWithMeta, getCurrentVersion, setChannel } from "tauri-plugin-ota-self-update-api";
+import * as otaApi from "tauri-plugin-ota-self-update-api";
 
 const response = ref("");
 const nativeVersion = ref("unknown");
@@ -39,16 +39,17 @@ function explainNoUpdate(meta) {
 
 async function refreshPluginVersion() {
   try {
-    const v = await getCurrentVersion();
+    const v = await otaApi.getCurrentVersion();
     nativeVersion.value = v.nativeVersion;
     otaVersion.value = v.otaVersion ?? "none";
     effectiveVersion.value = v.effectiveVersion;
     versionSource.value = v.source;
-  } catch {
+  } catch (err) {
     nativeVersion.value = "unknown";
     otaVersion.value = "unknown";
     effectiveVersion.value = "unknown";
     versionSource.value = "native";
+    updateResponse(err?.message || String(err), "VERSION_ERROR");
   }
 }
 
@@ -60,12 +61,12 @@ async function checkAndApply() {
   try {
     response.value = "";
     updateResponse(`Starting OTA check (channel=${defaultChannel}, baseUrl=${exampleBaseUrl})`);
-    await setChannel(defaultChannel);
+    await otaApi.setChannel(defaultChannel);
     updateResponse(`Channel set to "${defaultChannel}"`, "DEBUG");
 
-    const meta = await checkWithMeta();
+    const meta = await otaApi.checkWithMeta();
     updateResponse(meta, "META");
-    const update = await check();
+    const update = await otaApi.check();
     if (update) {
       const applyResult = await update.apply();
       updateResponse(applyResult, "APPLY");
@@ -82,6 +83,19 @@ async function checkAndApply() {
     if (err?.stack) {
       updateResponse(err.stack, "TRACE");
     }
+  }
+}
+
+async function rollbackOta() {
+  try {
+    const result = await invoke("plugin:ota-self-update|rollback_update");
+    updateResponse(result, "ROLLBACK");
+    await refreshPluginVersion();
+    updateResponse(
+      `Rollback finished. Effective version now=${effectiveVersion.value} (source=${versionSource.value}).`
+    );
+  } catch (err) {
+    updateResponse(err?.message || String(err), "ROLLBACK_ERROR");
   }
 }
 
@@ -115,6 +129,7 @@ refreshPluginVersion().then(() => {
 
     <div>
       <button @click="checkAndApply">Check OTA Update</button>
+      <button @click="rollbackOta">Rollback OTA Update</button>
       <div v-html="response"></div>
     </div>
   </main>

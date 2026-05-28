@@ -28,3 +28,8 @@ pub(crate) async fn get_current_version<R: Runtime>(
 ) -> Result<CurrentVersion> {
   app.ota_self_update().current_version().await
 }
+
+#[command]
+pub(crate) async fn rollback_update<R: Runtime>(app: AppHandle<R>) -> Result<RollbackResult> {
+  app.ota_self_update().rollback_update().await
+}

@@ -423,7 +423,7 @@ OTA_PUBLISH_MODE=server \
 OTA_BASE_URL=http://127.0.0.1:8080 \
 OTA_SERVER_TOKEN=super-secret \
 OTA_CHANNEL=stable \
-OTA_VERSION=0.2.1 \
+OTA_VERSION=0.2.2 \
 OTA_RELEASE_STATUS=released \
 OTA_DIST_DIR=examples/tauri-app/dist \
 pnpm run ota:publish
@@ -436,7 +436,7 @@ OTA_PUBLISH_MODE=server \
 OTA_BASE_URL=http://127.0.0.1:8080 \
 OTA_SERVER_TOKEN=super-secret \
 OTA_CHANNEL=beta \
-OTA_VERSION=0.2.1-beta.1 \
+OTA_VERSION=0.2.2-beta.1 \
 OTA_RELEASE_STATUS=draft \
 OTA_DIST_DIR=examples/tauri-app/dist \
 pnpm run ota:publish
@@ -477,6 +477,8 @@ Granular permissions are generated under `permissions/` for:
 - `check_for_updates`
 - `apply_update`
 - `set_channel`
+- `get_current_version`
+- `rollback_update`
 
 ---
 
