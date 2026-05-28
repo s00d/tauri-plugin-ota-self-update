@@ -1,5 +1,5 @@
 name: "Tauri OTA Publisher"
-description: "Universal self-hosted OTA artifact publishing for Tauri apps (GitHub Releases, S3, custom server)."
+description: "Universal self-hosted OTA artifact publishing for Tauri apps (GitHub Releases, Bitbucket Downloads, S3, custom server)."
 author: "s00d"
 branding:
   icon: "upload-cloud"
@@ -7,7 +7,7 @@ branding:
 
 inputs:
   mode:
-    description: "Publish mode: github | s3 | server"
+    description: "Publish mode: github | bitbucket | s3 | server"
     required: true
   channel:
     description: "OTA update channel name (for example: stable, beta)"
@@ -42,6 +42,22 @@ inputs:
     default: ""
   github_token:
     description: "GitHub token with releases write scope (github mode)"
+    required: false
+    default: ""
+  bitbucket_repo:
+    description: "Bitbucket repository in workspace/repo format (bitbucket mode)"
+    required: false
+    default: ""
+  bitbucket_token:
+    description: "Bitbucket bearer token (bitbucket mode, optional alternative to username/app password)"
+    required: false
+    default: ""
+  bitbucket_username:
+    description: "Bitbucket username (bitbucket mode, used with bitbucket_app_password)"
+    required: false
+    default: ""
+  bitbucket_app_password:
+    description: "Bitbucket app password (bitbucket mode, used with bitbucket_username)"
     required: false
     default: ""
   s3_bucket:
@@ -85,6 +101,10 @@ runs:
         OTA_TARGET_REPO: ${{ inputs.target_repo }}
         OTA_RELEASE_TAG: ${{ inputs.release_tag }}
         OTA_GITHUB_TOKEN: ${{ inputs.github_token }}
+        OTA_BITBUCKET_REPO: ${{ inputs.bitbucket_repo }}
+        OTA_BITBUCKET_TOKEN: ${{ inputs.bitbucket_token }}
+        OTA_BITBUCKET_USERNAME: ${{ inputs.bitbucket_username }}
+        OTA_BITBUCKET_APP_PASSWORD: ${{ inputs.bitbucket_app_password }}
         OTA_S3_BUCKET: ${{ inputs.s3_bucket }}
         OTA_SERVER_TOKEN: ${{ inputs.server_token }}
         OTA_MANIFEST_SIGNATURE: ${{ inputs.manifest_signature }}

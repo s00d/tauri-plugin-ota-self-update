@@ -43108,6 +43108,10 @@ function parseRepo(repo) {
   }
   return { owner, repo: name };
 }
+function bitbucketDownloadAssetUrl(targetRepo, assetName) {
+  const { owner, repo } = parseRepo(targetRepo);
+  return `https://bitbucket.org/${owner}/${repo}/downloads/${assetName}`;
+}
 function githubReleaseAssetUrl(targetRepo, tag2, assetName) {
   const { owner, repo } = parseRepo(targetRepo);
   return `https://github.com/${owner}/${repo}/releases/download/${tag2}/${assetName}`;
@@ -43196,10 +43200,63 @@ async function publishToGitHub(archivePath, manifestPath, version, notes) {
     body: manifestData
   });
 }
+async function publishToBitbucket(archivePath, manifestPath) {
+  const targetRepo = required("OTA_BITBUCKET_REPO");
+  const { owner, repo } = parseRepo(targetRepo);
+  const token = env2("OTA_BITBUCKET_TOKEN", "").trim();
+  const username = env2("OTA_BITBUCKET_USERNAME", "").trim();
+  const appPassword = env2("OTA_BITBUCKET_APP_PASSWORD", "").trim();
+  if (!token && (!username || !appPassword)) {
+    throw new Error(
+      "Missing Bitbucket credentials: provide OTA_BITBUCKET_TOKEN or OTA_BITBUCKET_USERNAME + OTA_BITBUCKET_APP_PASSWORD"
+    );
+  }
+  const authHeaders = token ? { Authorization: `Bearer ${token}` } : { Authorization: `Basic ${Buffer.from(`${username}:${appPassword}`).toString("base64")}` };
+  const apiBase = `https://api.bitbucket.org/2.0/repositories/${owner}/${repo}/downloads`;
+  const targets = [(0, import_node_path17.basename)(archivePath), (0, import_node_path17.basename)(manifestPath)];
+  async function listDownloads() {
+    let url = `${apiBase}?pagelen=100`;
+    const entries = [];
+    while (url) {
+      const page = await fetchJson(url, {
+        method: "GET",
+        headers: authHeaders
+      });
+      entries.push(...page.values ?? []);
+      url = page.next ?? "";
+    }
+    return entries;
+  }
+  const existing = await listDownloads();
+  for (const fileName of targets) {
+    if (existing.some((entry) => entry.name === fileName)) {
+      await fetchVoid(`${apiBase}/${encodeURIComponent(fileName)}`, {
+        method: "DELETE",
+        headers: authHeaders
+      });
+    }
+  }
+  async function uploadFile(filePath) {
+    const form = new FormData();
+    const body = await (0, import_promises5.readFile)(filePath);
+    form.append("files", new Blob([body]), (0, import_node_path17.basename)(filePath));
+    const response = await fetch(apiBase, {
+      method: "POST",
+      headers: authHeaders,
+      body: form
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status} for ${apiBase}`);
+    }
+  }
+  await uploadFile(archivePath);
+  await uploadFile(manifestPath);
+}
 async function publishToS3(archivePath, manifestPath, channel) {
   const bucket = required("OTA_S3_BUCKET");
   const region = env2("AWS_REGION", env2("AWS_DEFAULT_REGION", "us-east-1"));
   const client = new import_client_s3.S3Client({ region });
+  const manifest = await readJsonFile(manifestPath);
   const archiveBody = await (0, import_promises5.readFile)(archivePath);
   await client.send(
     new import_client_s3.PutObjectCommand({
@@ -43218,7 +43275,16 @@ async function publishToS3(archivePath, manifestPath, channel) {
       ContentType: "application/json"
     })
   );
-  await updateS3ReleaseIndex(client, bucket, region, channel, manifestPath);
+  const versionedManifestKey = `manifest/${channel}-${manifest.version}.json`;
+  await client.send(
+    new import_client_s3.PutObjectCommand({
+      Bucket: bucket,
+      Key: versionedManifestKey,
+      Body: manifestBody,
+      ContentType: "application/json"
+    })
+  );
+  await updateS3ReleaseIndex(client, bucket, region, channel, manifestPath, versionedManifestKey);
 }
 async function publishToServer(archivePath, manifestPath, channel) {
   const token = required("OTA_SERVER_TOKEN");
@@ -43293,7 +43359,7 @@ async function loadS3ReleaseIndex(client, bucket) {
     return [];
   }
 }
-async function updateS3ReleaseIndex(client, bucket, region, channel, manifestPath) {
+async function updateS3ReleaseIndex(client, bucket, region, channel, manifestPath, versionedManifestKey) {
   const manifest = await readJsonFile(manifestPath);
   const releaseStatusRaw = env2("OTA_RELEASE_STATUS", "released").trim().toLowerCase();
   const releaseStatus = releaseStatusRaw === "draft" || releaseStatusRaw === "revoked" ? releaseStatusRaw : "released";
@@ -43304,7 +43370,7 @@ async function updateS3ReleaseIndex(client, bucket, region, channel, manifestPat
     prerelease: isPrerelease(manifest.version),
     status: releaseStatus,
     pubDate: manifest.pubDate,
-    manifestUrl: `https://${bucket}.s3.${region}.amazonaws.com/manifest/${channel}.json`
+    manifestUrl: `https://${bucket}.s3.${region}.amazonaws.com/${versionedManifestKey}`
   });
   await client.send(
     new import_client_s3.PutObjectCommand({
@@ -43360,7 +43426,7 @@ async function main() {
   await createArchive(distDir, archivePath);
   const archiveHash = await sha256(archivePath);
   const githubTag = env2("OTA_RELEASE_TAG", "").trim() || `ota-${version}`;
-  const archiveUrl = mode === "github" ? githubReleaseAssetUrl(required("OTA_TARGET_REPO"), githubTag, archiveName) : `${baseUrl.replace(/\/$/, "")}/${channel}/${archiveName}`;
+  const archiveUrl = mode === "github" ? githubReleaseAssetUrl(required("OTA_TARGET_REPO"), githubTag, archiveName) : mode === "bitbucket" ? bitbucketDownloadAssetUrl(required("OTA_BITBUCKET_REPO"), archiveName) : `${baseUrl.replace(/\/$/, "")}/${channel}/${archiveName}`;
   const manifest = {
     version,
     notes: env2("OTA_NOTES", `OTA build ${version}`),
@@ -43380,6 +43446,8 @@ async function main() {
   }
   if (mode === "github") {
     await publishToGitHub(archivePath, manifestPath, version, manifest.notes);
+  } else if (mode === "bitbucket") {
+    await publishToBitbucket(archivePath, manifestPath);
   } else if (mode === "s3") {
     await publishToS3(archivePath, manifestPath, channel);
   } else if (mode === "server") {

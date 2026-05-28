@@ -25,6 +25,14 @@ pub struct OtaCore<R: Runtime> {
 }
 
 impl<R: Runtime> OtaCore<R> {
+  fn log_info(message: impl AsRef<str>) {
+    eprintln!("[ota-self-update][info] {}", message.as_ref());
+  }
+
+  fn log_warn(message: impl AsRef<str>) {
+    eprintln!("[ota-self-update][warn] {}", message.as_ref());
+  }
+
   fn prerelease_for_channel(channel: &str) -> bool {
     channel == "beta"
   }
@@ -76,6 +84,24 @@ impl<R: Runtime> OtaCore<R> {
       return None;
     }
     Some((owner, repo))
+  }
+
+  fn bitbucket_repo_from_base_url(base_url: &str) -> Option<(String, String)> {
+    let url = Url::parse(base_url).ok()?;
+    if !url.host_str().is_some_and(|host| host.eq_ignore_ascii_case("bitbucket.org")) {
+      return None;
+    }
+    let mut parts = url
+      .path_segments()
+      .map(|segments| segments.filter(|s| !s.is_empty()))
+      .into_iter()
+      .flatten();
+    let workspace = parts.next()?.to_string();
+    let repo = parts.next()?.trim_end_matches(".git").to_string();
+    if workspace.is_empty() || repo.is_empty() {
+      return None;
+    }
+    Some((workspace, repo))
   }
 
   async fn fetch_manifest_from_github(
@@ -191,6 +217,25 @@ impl<R: Runtime> OtaCore<R> {
     Ok(Some(bytes))
   }
 
+  async fn fetch_manifest_from_bitbucket(
+    client: &reqwest::Client,
+    workspace: &str,
+    repo: &str,
+    channel: &str,
+  ) -> Result<Vec<u8>> {
+    let manifest_name = format!("{channel}.json");
+    let url = format!("https://bitbucket.org/{workspace}/{repo}/downloads/{manifest_name}");
+    let bytes = client
+      .get(url)
+      .send()
+      .await?
+      .error_for_status()?
+      .bytes()
+      .await?
+      .to_vec();
+    Ok(bytes)
+  }
+
   async fn http_client(cfg: &Config) -> Result<reqwest::Client> {
     let mut headers = HeaderMap::new();
     for (k, v) in &cfg.request_headers {
@@ -258,28 +303,63 @@ impl<R: Runtime> OtaCore<R> {
     let client = Self::http_client(&cfg).await?;
     let channel = Self::channel(&cfg);
     let current_version = self.app.package_info().version.to_string();
+    Self::log_info(format!(
+      "check_for_updates start: base_url='{}', channel='{}', current_version='{}'",
+      cfg.base_url, channel, current_version
+    ));
 
     let manifest_bytes = if let Some((owner, repo)) = Self::github_repo_from_base_url(&cfg.base_url) {
+      Self::log_info(format!("manifest source: github repo={owner}/{repo}"));
       Self::fetch_manifest_from_github(&client, &owner, &repo, channel).await?
+    } else if let Some((workspace, repo)) = Self::bitbucket_repo_from_base_url(&cfg.base_url) {
+      Self::log_info(format!("manifest source: bitbucket repo={workspace}/{repo}"));
+      Self::fetch_manifest_from_bitbucket(&client, &workspace, &repo, channel).await?
+    } else if let Some(index_manifest) = Self::fetch_manifest_from_release_index(&client, &cfg, channel).await? {
+      Self::log_info("manifest source: releases.json index");
+      index_manifest
     } else {
-      if let Some(index_manifest) = Self::fetch_manifest_from_release_index(&client, &cfg, channel).await? {
-        index_manifest
-      } else {
-        let manifest_url = Self::manifest_url(&cfg);
-        client
-          .get(manifest_url)
-          .send()
-          .await?
-          .error_for_status()?
-          .bytes()
-          .await?
-          .to_vec()
-      }
+      let manifest_url = Self::manifest_url(&cfg);
+      Self::log_info(format!("manifest source: direct fallback url={manifest_url}"));
+      client
+        .get(manifest_url)
+        .send()
+        .await?
+        .error_for_status()?
+        .bytes()
+        .await?
+        .to_vec()
     };
     let manifest: UpdateManifest = serde_json::from_slice(&manifest_bytes)?;
+    Self::log_info(format!(
+      "manifest loaded: version='{}', archive_url='{}'",
+      manifest.version, manifest.archive_url
+    ));
     Self::verify_signature(&cfg.pubkey, &manifest_bytes, &manifest.signature)?;
 
     if !Self::is_newer_version(&current_version, &manifest.version) {
+      match (Version::parse(&current_version), Version::parse(&manifest.version)) {
+        (Ok(current), Ok(incoming)) => {
+          let current_is_prerelease = !current.pre.is_empty();
+          let incoming_is_prerelease = !incoming.pre.is_empty();
+          if current_is_prerelease != incoming_is_prerelease {
+            Self::log_warn(format!(
+              "update not available: track mismatch (current='{}', incoming='{}')",
+              current_version, manifest.version
+            ));
+          } else {
+            Self::log_info(format!(
+              "update not available: incoming version is not newer (current='{}', incoming='{}')",
+              current_version, manifest.version
+            ));
+          }
+        }
+        _ => {
+          Self::log_warn(format!(
+            "update not available: semver parse failed (current='{}', incoming='{}')",
+            current_version, manifest.version
+          ));
+        }
+      }
       return Ok(CheckResult {
         available: false,
         update: None,
@@ -300,6 +380,11 @@ impl<R: Runtime> OtaCore<R> {
     fs::create_dir_all(&cache_root)?;
     let archive_path = Self::download_path(&cache_root, &manifest.version);
     fs::write(&archive_path, archive_bytes)?;
+    Self::log_info(format!(
+      "update available: version='{}', archive cached at '{}'",
+      manifest.version,
+      archive_path.display()
+    ));
 
     let info = UpdateInfo {
       version: manifest.version.clone(),
@@ -320,6 +405,10 @@ impl<R: Runtime> OtaCore<R> {
   pub async fn apply_update(&self) -> Result<ApplyResult> {
     let cfg = self.config.lock().await.clone();
     let pending = self.pending_update.lock().await.clone().ok_or(Error::NoPendingUpdate)?;
+    Self::log_info(format!(
+      "apply_update start: version='{}', activation_policy='{:?}'",
+      pending.version, cfg.activation_policy
+    ));
 
     let target_dir = self.cache_root()?.join("latest-dist");
     if target_dir.exists() {

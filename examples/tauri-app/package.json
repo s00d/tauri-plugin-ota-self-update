@@ -1,7 +1,7 @@
 {
   "name": "tauri-app",
   "private": true,
-  "version": "0.1.2",
+  "version": "0.2.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -11,11 +11,11 @@
   },
   "dependencies": {
     "@tauri-apps/api": "^2.0.0",
-    "tauri-plugin-ota-self-update-api": "file:../../"
+    "tauri-plugin-ota-self-update-api": "file:../../",
+    "vue": "^3.5.22"
   },
   "devDependencies": {
-    "@sveltejs/vite-plugin-svelte": "^7.0.0",
-    "svelte": "^5.0.0",
+    "@vitejs/plugin-vue": "^6.0.1",
     "vite": "^8.0.0",
     "@tauri-apps/cli": "^2.0.0"
   }

@@ -10,7 +10,7 @@ on:
       version:
         description: "OTA version"
         required: true
-        default: "0.1.2"
+        default: "0.2.0"
       publish:
         description: "Publish to current repo release"
         required: true
@@ -184,7 +184,7 @@ jobs:
         shell: bash
         run: |
           VERSION="${{ inputs.version }}"
-          if [ -z "$VERSION" ]; then VERSION="0.1.2-ci-${GITHUB_RUN_NUMBER}"; fi
+          if [ -z "$VERSION" ]; then VERSION="0.2.0-ci-${GITHUB_RUN_NUMBER}"; fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
       - name: Build and publish Tauri app release assets
         uses: tauri-apps/tauri-action@v0
@@ -228,7 +228,7 @@ jobs:
           echo "channel=$CHANNEL" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
       - name: Verify marketplace action wiring (dry-run)
-        uses: s00d/tauri-plugin-ota-self-update@v0.1.2
+        uses: s00d/tauri-plugin-ota-self-update@v0.2.0
         with:
           mode: github
           channel: ${{ steps.vars.outputs.channel }}
@@ -265,7 +265,7 @@ jobs:
           echo "channel=$CHANNEL" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
       - name: Publish example OTA assets to current repo
-        uses: s00d/tauri-plugin-ota-self-update@v0.1.2
+        uses: s00d/tauri-plugin-ota-self-update@v0.2.0
         with:
           mode: github
           channel: ${{ steps.vars.outputs.channel }}

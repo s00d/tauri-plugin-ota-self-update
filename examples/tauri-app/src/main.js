@@ -1,9 +1,5 @@
 import "./style.css";
-import App from "./App.svelte";
-import { mount } from 'svelte';
+import { createApp } from "vue";
+import App from "./App.vue";
 
-const app = mount(App, {
-  target: document.getElementById("app"),
-});
-
-export default app;
+createApp(App).mount("#app");

@@ -41,7 +41,7 @@ This project provides:
 - JS API: `check()`, `checkWithMeta()`, `setChannel()`, `Update.apply()`.
 - Rust-side access via `app.ota_self_update()`.
 - Single Rust runtime is used on all targets (no separate Kotlin/Swift OTA bridge required).
-- Multiple publish targets: GitHub Releases, S3-compatible, custom HTTP server.
+- Multiple publish targets: GitHub Releases, Bitbucket Downloads, S3-compatible, custom HTTP server.
 - Marketplace-style reusable GitHub Action in repo root (`action.yml`).
 
 ---
@@ -60,9 +60,10 @@ This project provides:
 
 | Provider | Status | Notes |
 |----------|--------|-------|
-| GitHub Releases | Supported | Uses release assets (`stable.json` / `beta.json` + archive). |
-| S3-compatible storage | Supported | Uploads manifest/archive and maintains `releases.json`. |
-| Custom HTTP server | Supported | Token-protected upload API with dashboard lifecycle controls. |
+| GitHub Releases | Supported | Runtime queries GitHub Releases API and selects a release that contains channel manifest asset (`stable.json` / `beta.json`). |
+| Bitbucket Downloads | Supported | Publisher uploads archive + channel manifest (`stable.json`/`beta.json`) to repo downloads; runtime resolves manifest from Bitbucket downloads URL. |
+| S3-compatible storage | Supported | Publisher uploads manifest/archive and maintains `releases.json`; runtime resolves latest `released` entry for channel/track, then falls back to `manifest/<channel>.json`. |
+| Custom HTTP server | Supported | Same resolution model as S3 (`releases.json` with status filtering, fallback to `manifest/<channel>.json`) plus token-protected upload/admin API. |
 
 ---
 
@@ -252,6 +253,7 @@ pnpm run ota:publish
 Modes:
 
 - `github`: uses GitHub REST API via native `fetch`.
+- `bitbucket`: uploads artifacts to Bitbucket Downloads.
 - `s3`: uses AWS SDK v3 (`@aws-sdk/client-s3`).
 - `server`: uses native `fetch` PUT for archive + manifest upload.
 
@@ -277,6 +279,22 @@ For `s3` and `server` modes, publisher also maintains `releases.json` index:
 - `beta` resolves latest prerelease entry.
 - Client falls back to `manifest/<channel>.json` when `releases.json` is unavailable.
 
+Bitbucket mode example:
+
+```bash
+OTA_PUBLISH_MODE=bitbucket \
+OTA_CHANNEL=stable \
+OTA_VERSION=1.2.3 \
+OTA_BITBUCKET_REPO=workspace/repo \
+OTA_BITBUCKET_USERNAME=your-user \
+OTA_BITBUCKET_APP_PASSWORD=your-app-password \
+pnpm run ota:publish
+```
+
+Alternative auth for Bitbucket mode:
+- `OTA_BITBUCKET_TOKEN` (Bearer token), or
+- `OTA_BITBUCKET_USERNAME` + `OTA_BITBUCKET_APP_PASSWORD`.
+
 ---
 
 ## GitHub Action
@@ -297,10 +315,11 @@ This repository exposes a reusable action in `action.yml`.
 
 Primary inputs:
 
-- `mode`: `github | s3 | server` (required)
+- `mode`: `github | bitbucket | s3 | server` (required)
 - `version`: OTA version (required)
 - `channel`, `dist_dir`, `out_dir`, `base_url`, `notes`
 - `target_repo`, `release_tag`, `github_token` (github mode)
+- `bitbucket_repo`, `bitbucket_token`, `bitbucket_username`, `bitbucket_app_password` (bitbucket mode)
 - `s3_bucket` (s3 mode)
 - `server_token` (server mode)
 - `manifest_signature`, `archive_signature`
@@ -396,7 +415,7 @@ OTA_PUBLISH_MODE=server \
 OTA_BASE_URL=http://127.0.0.1:8080 \
 OTA_SERVER_TOKEN=super-secret \
 OTA_CHANNEL=stable \
-OTA_VERSION=0.1.2 \
+OTA_VERSION=0.2.0 \
 OTA_RELEASE_STATUS=released \
 OTA_DIST_DIR=examples/tauri-app/dist \
 pnpm run ota:publish
@@ -409,7 +428,7 @@ OTA_PUBLISH_MODE=server \
 OTA_BASE_URL=http://127.0.0.1:8080 \
 OTA_SERVER_TOKEN=super-secret \
 OTA_CHANNEL=beta \
-OTA_VERSION=0.1.2-beta.1 \
+OTA_VERSION=0.2.0-beta.1 \
 OTA_RELEASE_STATUS=draft \
 OTA_DIST_DIR=examples/tauri-app/dist \
 pnpm run ota:publish

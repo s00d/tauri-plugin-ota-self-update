@@ -167,7 +167,7 @@ export const siteEn: SiteContent = {
                 code: {
                   language: 'bash',
                   value:
-                    'OTA_PUBLISH_MODE=server OTA_CHANNEL=stable OTA_VERSION=0.1.2 OTA_BASE_URL=http://localhost:9033 OTA_SERVER_TOKEN=dev-token pnpm run ota:publish'
+                    'OTA_PUBLISH_MODE=server OTA_CHANNEL=stable OTA_VERSION=0.2.0 OTA_BASE_URL=http://localhost:9033 OTA_SERVER_TOKEN=dev-token pnpm run ota:publish'
                 }
               },
               {
@@ -180,7 +180,7 @@ export const siteEn: SiteContent = {
                 body: ['Keep deterministic logs for local and CI smoke checks.'],
                 code: {
                   language: 'text',
-                  value: 'check: found update 0.1.2\napply: status=appliedNow\nactivation: softReload -> location.reload()'
+                  value: 'check: found update 0.2.0\napply: status=appliedNow\nactivation: softReload -> location.reload()'
                 }
               },
               {
@@ -373,7 +373,7 @@ export const siteEn: SiteContent = {
                 code: {
                   language: 'bash',
                   value:
-                    'OTA_PUBLISH_MODE=github|s3|server\nOTA_VERSION=0.1.2\nOTA_CHANNEL=stable|beta\nOTA_RELEASE_STATUS=draft|released|revoked'
+                    'OTA_PUBLISH_MODE=github|s3|server\nOTA_VERSION=0.2.0\nOTA_CHANNEL=stable|beta\nOTA_RELEASE_STATUS=draft|released|revoked'
                 }
               },
               {

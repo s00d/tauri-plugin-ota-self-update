@@ -66,7 +66,7 @@ OTA_PUBLISH_MODE=server \
 OTA_BASE_URL=http://127.0.0.1:8080 \
 OTA_SERVER_TOKEN=super-secret \
 OTA_CHANNEL=stable \
-OTA_VERSION=0.1.2 \
+OTA_VERSION=0.2.0 \
 OTA_RELEASE_STATUS=released \
 OTA_DIST_DIR=examples/tauri-app/dist \
 pnpm run ota:publish
