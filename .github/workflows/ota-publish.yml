@@ -16,7 +16,8 @@ on:
         required: true
         default: "false"
   push:
-    branches: [main]
+    tags:
+      - "v*"
   pull_request:
 
 jobs:
