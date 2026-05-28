@@ -325,7 +325,7 @@ Primary inputs:
 - `manifest_signature`, `archive_signature`
 - `dry_run` (`true|false`)
 
-Validation workflow example is provided at `.github/workflows/ota-publish.yml`.
+Validation workflow example is provided at `.github/workflows/example-build.yml`.
 
 Cross-repo action usage notes:
 - `target_repo` can point to a different repository than the workflow repository.
