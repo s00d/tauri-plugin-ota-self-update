@@ -251,9 +251,26 @@ pnpm run ota:publish
 
 Modes:
 
-- `github`: uses GitHub REST API via `@octokit/rest`.
+- `github`: uses GitHub REST API via native `fetch`.
 - `s3`: uses AWS SDK v3 (`@aws-sdk/client-s3`).
-- `server`: uses `axios` PUT to upload archive + manifest.
+- `server`: uses native `fetch` PUT for archive + manifest upload.
+
+Cross-repo publish (`private -> public`) is supported in `github` mode:
+
+- Build in a private repository, publish OTA assets to another repository via `OTA_TARGET_REPO=owner/public-repo`.
+- Use `OTA_GITHUB_TOKEN` (or `GITHUB_TOKEN`/`GH_TOKEN`) with write access to the **target** repository releases.
+- In GitHub Actions, default `GITHUB_TOKEN` is often scoped to the current repo only; use a PAT/FGPAT secret for cross-repo publish.
+
+Example (`private CI -> public OTA repo`):
+
+```bash
+OTA_PUBLISH_MODE=github \
+OTA_CHANNEL=stable \
+OTA_VERSION=1.2.3 \
+OTA_TARGET_REPO=owner/public-repo \
+OTA_GITHUB_TOKEN=ghp_xxx \
+pnpm run ota:publish
+```
 
 For `s3` and `server` modes, publisher also maintains `releases.json` index:
 - `stable` resolves latest non-prerelease entry.
@@ -290,6 +307,10 @@ Primary inputs:
 - `dry_run` (`true|false`)
 
 Validation workflow example is provided at `.github/workflows/ota-publish.yml`.
+
+Cross-repo action usage notes:
+- `target_repo` can point to a different repository than the workflow repository.
+- For cross-repo publish, pass a PAT/FGPAT via `github_token` that has release write permissions on `target_repo`.
 
 ---
 
