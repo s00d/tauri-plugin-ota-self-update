@@ -3,19 +3,37 @@ import { join, resolve } from 'node:path'
 
 const dist = resolve('dist')
 const locales = ['', 'ru']
-const pages = ['install', 'run', 'publish', 'action', 'server', 'troubleshooting']
+const docsPages = [
+  'installation',
+  'quick-start',
+  'channels-lifecycle',
+  'activation-policy',
+  'plugin-config',
+  'js-rust-api',
+  'publisher-modes',
+  'github-action',
+  'server-dashboard',
+  'openapi-swagger',
+  'troubleshooting',
+  'recipes'
+]
 
 await copyFile(join(dist, 'index.html'), join(dist, '404.html'))
 
 for (const locale of locales) {
-  const localePrefix = locale ? `/${locale}` : ''
-  const indexDir = join(dist, locale)
-  await mkdir(indexDir, { recursive: true })
-  await copyFile(join(dist, 'index.html'), join(indexDir, 'index.html'))
+  const prefix = locale ? `/${locale}` : ''
 
-  for (const page of pages) {
-    const pageDir = join(dist, localePrefix, page)
-    await mkdir(pageDir, { recursive: true })
-    await copyFile(join(dist, 'index.html'), join(pageDir, 'index.html'))
+  const homeDir = join(dist, prefix)
+  await mkdir(homeDir, { recursive: true })
+  await copyFile(join(dist, 'index.html'), join(homeDir, 'index.html'))
+
+  const docsDir = join(dist, prefix, 'docs')
+  await mkdir(docsDir, { recursive: true })
+  await copyFile(join(dist, 'index.html'), join(docsDir, 'index.html'))
+
+  for (const slug of docsPages) {
+    const slugDir = join(dist, prefix, 'docs', slug)
+    await mkdir(slugDir, { recursive: true })
+    await copyFile(join(dist, 'index.html'), join(slugDir, 'index.html'))
   }
 }

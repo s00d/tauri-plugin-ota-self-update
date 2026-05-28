@@ -56,6 +56,14 @@ This project provides:
 | Android | Supported |
 | iOS | Supported |
 
+### Update providers
+
+| Provider | Status | Notes |
+|----------|--------|-------|
+| GitHub Releases | Supported | Uses release assets (`stable.json` / `beta.json` + archive). |
+| S3-compatible storage | Supported | Uploads manifest/archive and maintains `releases.json`. |
+| Custom HTTP server | Supported | Token-protected upload API with dashboard lifecycle controls. |
+
 ---
 
 ## Installation
@@ -367,7 +375,7 @@ OTA_PUBLISH_MODE=server \
 OTA_BASE_URL=http://127.0.0.1:8080 \
 OTA_SERVER_TOKEN=super-secret \
 OTA_CHANNEL=stable \
-OTA_VERSION=0.1.1 \
+OTA_VERSION=0.1.2 \
 OTA_RELEASE_STATUS=released \
 OTA_DIST_DIR=examples/tauri-app/dist \
 pnpm run ota:publish
@@ -395,18 +403,14 @@ The server stores:
 
 ## Landing
 
-A dedicated multi-page landing is included in `landing/` with EN/RU translations.
+A dedicated multi-page marketing + docs portal is included in `landing/` with EN/RU translations.
 
 - Stack: Vue 3 + Vite + Tailwind CSS v4
 - i18n: content-driven (`site.en.ts` / `site.ru.ts`)
-- Main pages:
-  - Home
-  - Install
-  - Run
-  - Publish
-  - GitHub Action
-  - Server
-  - Troubleshooting
+- Routes:
+  - Marketing home: `/` and `/ru`
+  - Full docs portal: `/docs` and `/ru/docs`
+  - Docs pages (examples): `installation`, `quick-start`, `channels-lifecycle`, `publisher-modes`, `server-dashboard`, `troubleshooting`
 - Local run:
   - `pnpm --dir landing dev`
 - Build:

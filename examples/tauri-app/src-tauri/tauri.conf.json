@@ -1,6 +1,6 @@
 {
   "productName": "tauri-app",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "identifier": "com.s00d.ota.self.update.example",
   "build": {
     "beforeDevCommand": "pnpm dev",

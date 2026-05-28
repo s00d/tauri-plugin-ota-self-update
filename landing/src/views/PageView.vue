@@ -1,15 +1,15 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
-import { loadSiteContent } from '../content/loadSiteContent'
+import { getSiteContent } from '../content/loadSiteContent'
 import { normalizeLocale } from '../content/locales'
 import type { SitePageKey } from '../content/types'
 
 const route = useRoute()
-const locale = normalizeLocale(String(route.params.locale || 'en'))
-const content = await loadSiteContent(locale)
+const locale = computed(() => normalizeLocale(String(route.params.locale || 'en')))
+const content = computed(() => getSiteContent(locale.value))
 const pageKey = computed(() => (route.meta.pageKey as SitePageKey) || 'home')
-const page = computed(() => content.pages[pageKey.value])
+const page = computed(() => content.value.pages[pageKey.value])
 </script>
 
 <template>

@@ -109,25 +109,23 @@ impl<R: Runtime> OtaCore<R> {
       .await?;
 
     let want_prerelease = channel == "beta";
-    let selected = releases
-      .iter()
-      .find(|release| !release.draft && release.prerelease == want_prerelease)
-      .ok_or_else(|| {
-        Error::Message(format!(
-          "no suitable GitHub release found for channel '{channel}' (repo: {owner}/{repo})"
-        ))
-      })?;
-
     let manifest_name = format!("{channel}.json");
-    let manifest_asset = selected
-      .assets
+    let selected_with_manifest = releases
       .iter()
-      .find(|asset| asset.name == manifest_name)
+      .filter(|release| !release.draft && release.prerelease == want_prerelease)
+      .find_map(|release| {
+        release
+          .assets
+          .iter()
+          .find(|asset| asset.name == manifest_name)
+          .map(|asset| (release, asset))
+      })
       .ok_or_else(|| {
         Error::Message(format!(
-          "manifest asset '{manifest_name}' not found in selected GitHub release (repo: {owner}/{repo})"
+          "no suitable GitHub release with '{manifest_name}' asset found for channel '{channel}' (repo: {owner}/{repo})"
         ))
       })?;
+    let (_selected_release, manifest_asset) = selected_with_manifest;
 
     let bytes = client
       .get(&manifest_asset.browser_download_url)
