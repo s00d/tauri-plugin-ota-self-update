@@ -1,0 +1,23 @@
+.github/workflows/example-build.yml
+  s_7bc77c312083da::t_6df6d6f915cdc0 1-150
+.github/workflows/ota-publish.yml
+  s_7bc77c312083da::t_5c92bf34759012 1,15-19,52,108-109,112,121-122,136-137,141
+README.md
+  s_7bc77c312083da::t_85f265785f0519 328
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "26b0d0e2a7e4e43f681e91122a6869bba1bc923f",
+  "prompts": {},
+  "sessions": {
+    "s_7bc77c312083da": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "a0b4a00c-7217-48eb-b7ee-47f6b3bf7584",
+        "model": "default"
+      },
+      "human_author": "Pavel Kuzmin <Virus191288@gmail.com>"
+    }
+  }
+}
