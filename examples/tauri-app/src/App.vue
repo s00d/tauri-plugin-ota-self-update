@@ -1,11 +1,13 @@
 <script setup>
 import { ref } from "vue";
 import { invoke } from "@tauri-apps/api/core";
-import { getVersion } from "@tauri-apps/api/app";
-import { check, checkWithMeta, setChannel } from "tauri-plugin-ota-self-update-api";
+import { check, checkWithMeta, getCurrentVersion, setChannel } from "tauri-plugin-ota-self-update-api";
 
 const response = ref("");
-const appVersion = ref("unknown");
+const nativeVersion = ref("unknown");
+const otaVersion = ref("none");
+const effectiveVersion = ref("unknown");
+const versionSource = ref("native");
 const name = ref("");
 const greetMsg = ref("");
 
@@ -28,20 +30,27 @@ function explainNoUpdate(meta) {
     );
     return;
   }
-  updateResponse(`Candidate=${candidate}, current=${appVersion.value}.`, "DEBUG");
+  updateResponse(`Candidate=${candidate}, current(effective)=${effectiveVersion.value}.`, "DEBUG");
   updateResponse(
     "If versions are equal or track rules deny transition (release->release, prerelease->prerelease), available=false is expected.",
     "DEBUG"
   );
 }
 
-getVersion()
-  .then((version) => {
-    appVersion.value = version;
-  })
-  .catch(() => {
-    appVersion.value = "unknown";
-  });
+async function refreshPluginVersion() {
+  try {
+    const v = await getCurrentVersion();
+    nativeVersion.value = v.nativeVersion;
+    otaVersion.value = v.otaVersion ?? "none";
+    effectiveVersion.value = v.effectiveVersion;
+    versionSource.value = v.source;
+  } catch {
+    nativeVersion.value = "unknown";
+    otaVersion.value = "unknown";
+    effectiveVersion.value = "unknown";
+    versionSource.value = "native";
+  }
+}
 
 async function greet() {
   greetMsg.value = await invoke("greet", { name: name.value });
@@ -60,7 +69,10 @@ async function checkAndApply() {
     if (update) {
       const applyResult = await update.apply();
       updateResponse(applyResult, "APPLY");
-      updateResponse("Update downloaded and unpacked into cache. Reload app to pick changes.");
+      await refreshPluginVersion();
+      updateResponse(
+        `Update applied. Effective version now=${effectiveVersion.value} (source=${versionSource.value}).`
+      );
     } else {
       updateResponse("check() returned null (no available update).");
       explainNoUpdate(meta);
@@ -72,12 +84,18 @@ async function checkAndApply() {
     }
   }
 }
+
+refreshPluginVersion().then(() => {
+  checkAndApply();
+});
 </script>
 
 <template>
   <main class="container">
     <h1>Welcome to Tauri + Vue!</h1>
-    <p>App version: {{ appVersion }}</p>
+    <p>Native version: {{ nativeVersion }}</p>
+    <p>OTA version: {{ otaVersion }}</p>
+    <p>Effective version (plugin): {{ effectiveVersion }} [{{ versionSource }}]</p>
     <p>Debug target: {{ exampleBaseUrl }} (channel: {{ defaultChannel }})</p>
 
     <div class="row">

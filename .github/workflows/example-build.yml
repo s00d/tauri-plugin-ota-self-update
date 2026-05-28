@@ -136,7 +136,7 @@ jobs:
           echo "channel=$CHANNEL" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
       - name: Verify marketplace action wiring (dry-run)
-        uses: s00d/tauri-plugin-ota-self-update@v0.2.0
+        uses: s00d/tauri-plugin-ota-self-update@v0.2.1
         with:
           mode: github
           channel: ${{ steps.vars.outputs.channel }}

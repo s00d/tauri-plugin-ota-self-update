@@ -1,27 +1,36 @@
-use std::{
-  fs,
-  path::{Path, PathBuf},
-  sync::Arc,
-};
+use std::{collections::HashMap, fs, io::Cursor, path::{Path, PathBuf}, sync::{Arc, Mutex}};
 
 use base64::Engine;
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use semver::Version;
-use tauri::{AppHandle, Manager, Runtime};
+use tauri::{utils::assets::AssetKey, AppHandle, Manager, Runtime};
 use url::Url;
 
 use crate::{models::*, Config, Error, Result};
 
 #[derive(Clone)]
 pub struct PendingUpdate {
-  pub version: String,
-  pub archive_path: PathBuf,
+  version: String,
+  archive_path: PathBuf,
+  manifest: UpdateManifest,
+  manifest_bytes: Vec<u8>,
+  manifest_metadata: ManifestMetadata,
+}
+
+#[derive(Clone, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ManifestMetadata {
+  update_version: String,
+  signature: String,
 }
 
 pub struct OtaCore<R: Runtime> {
   app: AppHandle<R>,
   config: Arc<tauri::async_runtime::Mutex<Config>>,
   pending_update: Arc<tauri::async_runtime::Mutex<Option<PendingUpdate>>>,
+  manifest_metadata: Arc<tauri::async_runtime::Mutex<Option<ManifestMetadata>>>,
+  manifest_operation_lock: Arc<tauri::async_runtime::Mutex<()>>,
+  assets: Arc<Mutex<HashMap<AssetKey, Vec<u8>>>>,
 }
 
 impl<R: Runtime> OtaCore<R> {
@@ -48,12 +57,21 @@ impl<R: Runtime> OtaCore<R> {
     cfg.channel.as_deref().unwrap_or("stable")
   }
 
-  pub fn new(app: AppHandle<R>, config: Config) -> Self {
-    Self {
+  pub fn new(
+    app: AppHandle<R>,
+    config: Config,
+    assets: Arc<Mutex<HashMap<AssetKey, Vec<u8>>>>,
+  ) -> Self {
+    let core = Self {
       app,
       config: Arc::new(tauri::async_runtime::Mutex::new(config)),
       pending_update: Arc::new(tauri::async_runtime::Mutex::new(None)),
-    }
+      manifest_metadata: Arc::new(tauri::async_runtime::Mutex::new(None)),
+      manifest_operation_lock: Arc::new(tauri::async_runtime::Mutex::new(())),
+      assets,
+    };
+    core.load_cached_assets_on_startup();
+    core
   }
 
   fn cache_root(&self) -> Result<PathBuf> {
@@ -273,6 +291,170 @@ impl<R: Runtime> OtaCore<R> {
     cache_root.join(format!("update-{version}.tar.gz"))
   }
 
+  fn latest_archive_path(cache_root: &Path) -> PathBuf {
+    cache_root.join("latest-update.tar.gz")
+  }
+
+  fn latest_manifest_path(cache_root: &Path) -> PathBuf {
+    cache_root.join("latest-manifest.json")
+  }
+
+  fn manifest_metadata_path(cache_root: &Path) -> PathBuf {
+    cache_root.join("latest-manifest.meta.json")
+  }
+
+  fn rollback_cached_update(&self, cache_root: &Path, reason: &str) {
+    Self::log_warn(format!(
+      "rolling back cached OTA payload; reason: {reason}"
+    ));
+
+    for path in [
+      Self::latest_manifest_path(cache_root),
+      Self::manifest_metadata_path(cache_root),
+      Self::latest_archive_path(cache_root),
+    ] {
+      if path.exists() {
+        if let Err(err) = fs::remove_file(&path) {
+          Self::log_warn(format!(
+            "failed to remove rollback file '{}': {err}",
+            path.display()
+          ));
+        }
+      }
+    }
+
+    self.assets.lock().unwrap().clear();
+    self.manifest_metadata.blocking_lock().take();
+  }
+
+  fn base64_to_string(base64_string: &str) -> Result<String> {
+    let decoded = base64::engine::general_purpose::STANDARD.decode(base64_string)?;
+    Ok(std::str::from_utf8(&decoded)?.to_string())
+  }
+
+  fn load_assets(
+    archive_bytes: &[u8],
+    manifest: &UpdateManifest,
+    pubkey_base64: &str,
+    cache_root: &Path,
+  ) -> Result<HashMap<AssetKey, Vec<u8>>> {
+    let public_key = if pubkey_base64.trim().is_empty() {
+      None
+    } else {
+      let pubkey_decoded = Self::base64_to_string(pubkey_base64)?;
+      Some(
+        minisign_verify::PublicKey::decode(&pubkey_decoded).map_err(Error::InvalidPublicKey)?,
+      )
+    };
+
+    let mut assets = HashMap::new();
+    let mut archive = tar::Archive::new(Cursor::new(archive_bytes));
+    let archive_out_dir = tempfile::tempdir_in(cache_root)?;
+    archive.unpack(archive_out_dir.path())?;
+    let dist_dir = archive_out_dir.path().join("dist");
+
+    for entry in walkdir::WalkDir::new(&dist_dir) {
+      let entry = entry.map_err(|err| Error::Message(err.to_string()))?;
+      if !entry.file_type().is_file() {
+        continue;
+      }
+      let path = entry.path();
+      let relative_path = path
+        .strip_prefix(&dist_dir)
+        .map_err(|err| Error::Message(err.to_string()))?;
+      let data = fs::read(path)?;
+
+      if let Some(public_key) = &public_key {
+        let manifest_file = manifest.files.get(relative_path).ok_or_else(|| {
+          Error::Message(format!(
+            "file '{}' not found in manifest",
+            relative_path.display()
+          ))
+        })?;
+        let signature_decoded = Self::base64_to_string(&manifest_file.signature)?;
+        let signature =
+          minisign_verify::Signature::decode(&signature_decoded).map_err(Error::InvalidSignature)?;
+        public_key
+          .verify(&data, &signature, false)
+          .map_err(Error::InvalidSignature)?;
+      }
+
+      assets.insert(relative_path.into(), data);
+    }
+
+    Ok(assets)
+  }
+
+  fn load_cached_assets_on_startup(&self) {
+    let cache_root = match self.cache_root() {
+      Ok(path) => path,
+      Err(err) => {
+        Self::log_warn(format!("startup cache init failed: {err}"));
+        return;
+      }
+    };
+    let manifest_path = Self::latest_manifest_path(&cache_root);
+    let metadata_path = Self::manifest_metadata_path(&cache_root);
+    let archive_path = Self::latest_archive_path(&cache_root);
+    if !manifest_path.exists() || !metadata_path.exists() || !archive_path.exists() {
+      return;
+    }
+
+    let manifest_bytes = match fs::read(&manifest_path) {
+      Ok(bytes) => bytes,
+      Err(err) => {
+        self.rollback_cached_update(&cache_root, &format!("failed reading cached manifest: {err}"));
+        return;
+      }
+    };
+    let manifest: UpdateManifest = match serde_json::from_slice(&manifest_bytes) {
+      Ok(value) => value,
+      Err(err) => {
+        Self::log_warn(format!("failed parsing cached manifest: {err}"));
+        return;
+      }
+    };
+    let metadata: ManifestMetadata = match fs::read_to_string(&metadata_path)
+      .ok()
+      .and_then(|json| serde_json::from_str(&json).ok())
+    {
+      Some(value) => value,
+      None => {
+        self.rollback_cached_update(&cache_root, "failed reading cached manifest metadata");
+        return;
+      }
+    };
+    let pubkey = self.config.blocking_lock().pubkey.clone();
+    if let Err(err) = Self::verify_signature(&pubkey, &manifest_bytes, &metadata.signature) {
+      self.rollback_cached_update(
+        &cache_root,
+        &format!("cached manifest signature check failed: {err}"),
+      );
+      return;
+    }
+
+    let archive_bytes = match fs::read(&archive_path) {
+      Ok(bytes) => bytes,
+      Err(err) => {
+        self.rollback_cached_update(&cache_root, &format!("failed reading cached archive: {err}"));
+        return;
+      }
+    };
+    match Self::load_assets(&archive_bytes, &manifest, &pubkey, &cache_root) {
+      Ok(loaded) => {
+        *self.assets.lock().unwrap() = loaded;
+        self
+          .manifest_metadata
+          .blocking_lock()
+          .replace(metadata);
+        Self::log_info("cached OTA assets loaded on startup");
+      }
+      Err(err) => {
+        self.rollback_cached_update(&cache_root, &format!("failed loading cached OTA assets: {err}"));
+      }
+    }
+  }
+
   fn is_newer_version(current: &str, incoming: &str) -> bool {
     let cv = Version::parse(current);
     let iv = Version::parse(incoming);
@@ -299,7 +481,9 @@ impl<R: Runtime> OtaCore<R> {
   }
 
   pub async fn check_for_updates(&self) -> Result<CheckResult> {
+    let _guard = self.manifest_operation_lock.lock().await;
     let cfg = self.config.lock().await.clone();
+    let current_manifest_metadata = self.manifest_metadata.lock().await.clone();
     let client = Self::http_client(&cfg).await?;
     let channel = Self::channel(&cfg);
     let current_version = self.app.package_info().version.to_string();
@@ -335,6 +519,21 @@ impl<R: Runtime> OtaCore<R> {
       manifest.version, manifest.archive_url
     ));
     Self::verify_signature(&cfg.pubkey, &manifest_bytes, &manifest.signature)?;
+    let manifest_metadata = ManifestMetadata {
+      update_version: manifest.version.clone(),
+      signature: manifest.signature.clone(),
+    };
+
+    if current_manifest_metadata
+      .as_ref()
+      .is_some_and(|m| m.update_version == manifest.version)
+    {
+      Self::log_info("update not available: same version as cached manifest metadata");
+      return Ok(CheckResult {
+        available: false,
+        update: None,
+      });
+    }
 
     if !Self::is_newer_version(&current_version, &manifest.version) {
       match (Version::parse(&current_version), Version::parse(&manifest.version)) {
@@ -388,12 +587,15 @@ impl<R: Runtime> OtaCore<R> {
 
     let info = UpdateInfo {
       version: manifest.version.clone(),
-      notes: manifest.notes,
-      pub_date: manifest.pub_date,
+      notes: manifest.notes.clone(),
+      pub_date: manifest.pub_date.clone(),
     };
     self.pending_update.lock().await.replace(PendingUpdate {
-      version: manifest.version,
+      version: manifest.version.clone(),
       archive_path,
+      manifest,
+      manifest_bytes,
+      manifest_metadata,
     });
 
     Ok(CheckResult {
@@ -403,6 +605,7 @@ impl<R: Runtime> OtaCore<R> {
   }
 
   pub async fn apply_update(&self) -> Result<ApplyResult> {
+    let _guard = self.manifest_operation_lock.lock().await;
     let cfg = self.config.lock().await.clone();
     let pending = self.pending_update.lock().await.clone().ok_or(Error::NoPendingUpdate)?;
     Self::log_info(format!(
@@ -410,16 +613,25 @@ impl<R: Runtime> OtaCore<R> {
       pending.version, cfg.activation_policy
     ));
 
-    let target_dir = self.cache_root()?.join("latest-dist");
-    if target_dir.exists() {
-      fs::remove_dir_all(&target_dir)?;
-    }
-    fs::create_dir_all(&target_dir)?;
-
-    let archive_file = fs::File::open(&pending.archive_path)?;
-    let decoder = flate2::read::GzDecoder::new(archive_file);
-    let mut archive = tar::Archive::new(decoder);
-    archive.unpack(&target_dir)?;
+    let cache_root = self.cache_root()?;
+    let archive_bytes = fs::read(&pending.archive_path)?;
+    let loaded_assets = Self::load_assets(&archive_bytes, &pending.manifest, &cfg.pubkey, &cache_root)?;
+    *self.assets.lock().unwrap() = loaded_assets;
+    fs::write(Self::latest_archive_path(&cache_root), &archive_bytes)?;
+    fs::write(
+      Self::latest_manifest_path(&cache_root),
+      &pending.manifest_bytes,
+    )?;
+    fs::write(
+      Self::manifest_metadata_path(&cache_root),
+      serde_json::to_vec(&pending.manifest_metadata)?,
+    )?;
+    self
+      .manifest_metadata
+      .lock()
+      .await
+      .replace(pending.manifest_metadata.clone());
+    self.pending_update.lock().await.take();
 
     let status = match cfg.activation_policy {
       ActivationPolicy::NextLaunch => ActivationStatus::PendingRestart,
@@ -430,6 +642,29 @@ impl<R: Runtime> OtaCore<R> {
       status,
       version: pending.version,
       activation_policy: cfg.activation_policy,
+    })
+  }
+
+  pub async fn current_version(&self) -> Result<CurrentVersion> {
+    let native_version = self.app.package_info().version.to_string();
+    let ota_version = self
+      .manifest_metadata
+      .lock()
+      .await
+      .as_ref()
+      .map(|meta| meta.update_version.clone());
+
+    let (effective_version, source) = if let Some(version) = &ota_version {
+      (version.clone(), String::from("ota"))
+    } else {
+      (native_version.clone(), String::from("native"))
+    };
+
+    Ok(CurrentVersion {
+      native_version,
+      ota_version,
+      effective_version,
+      source,
     })
   }
 }

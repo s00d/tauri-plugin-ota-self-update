@@ -1,7 +1,16 @@
-use std::collections::HashMap;
+use std::{
+  borrow::Cow,
+  cell::OnceCell,
+  collections::HashMap,
+  sync::{Arc, Mutex},
+};
 
 use serde::{Deserialize, Deserializer};
-use tauri::{plugin::{Builder, TauriPlugin}, Context, Manager, Runtime};
+use tauri::{
+  plugin::{Builder, TauriPlugin},
+  utils::assets::{AssetKey, CspHash},
+  App, Assets, Context, Manager, Runtime,
+};
 
 pub use models::*;
 
@@ -55,15 +64,69 @@ impl<R: Runtime, T: Manager<R>> crate::OtaSelfUpdateExt<R> for T {
   }
 }
 
+pub(crate) struct OtaAssets<R: Runtime> {
+  overlay_assets: Arc<Mutex<HashMap<AssetKey, Vec<u8>>>>,
+  embedded_assets: OnceCell<Box<dyn Assets<R>>>,
+  csp_hashes: Vec<CspHash<'static>>,
+}
+
+unsafe impl<R: Runtime> Sync for OtaAssets<R> {}
+
+impl<R: Runtime> Assets<R> for OtaAssets<R> {
+  fn setup(&self, app: &App<R>) {
+    let ota = app.state::<OtaSelfUpdate<R>>();
+    self.embedded_assets.get_or_init(|| {
+      let assets = ota.embedded_assets.lock().unwrap().take().unwrap();
+      assets.setup(app);
+      assets
+    });
+  }
+
+  fn csp_hashes(&self, _html_path: &AssetKey) -> Box<dyn Iterator<Item = CspHash<'_>> + '_> {
+    Box::new(self.csp_hashes.iter().copied())
+  }
+
+  fn get(&self, key: &AssetKey) -> Option<Cow<'_, [u8]>> {
+    self
+      .overlay_assets
+      .lock()
+      .unwrap()
+      .get(key)
+      .map(|bytes| Cow::Owned(bytes.clone()))
+      .or_else(|| self.embedded_assets.get().unwrap().get(key))
+  }
+
+  fn iter(&self) -> Box<dyn Iterator<Item = (Cow<'_, str>, Cow<'_, [u8]>)> + '_> {
+    Box::new(
+      self
+        .overlay_assets
+        .lock()
+        .unwrap()
+        .clone()
+        .into_iter()
+        .map(|(k, v)| (Cow::Owned(k.as_ref().to_string()), Cow::Owned(v))),
+    )
+  }
+}
+
 pub fn init<R: Runtime>(context: Context<R>) -> (TauriPlugin<R, Config>, Context<R>) {
+  let overlay_assets = Arc::new(Mutex::new(HashMap::<AssetKey, Vec<u8>>::new()));
+  let mut context = context;
+  let embedded_assets = context.set_assets(Box::new(OtaAssets {
+    overlay_assets: overlay_assets.clone(),
+    embedded_assets: Default::default(),
+    csp_hashes: Default::default(),
+  }));
+
   let plugin = Builder::<R, Config>::new("ota-self-update")
     .invoke_handler(tauri::generate_handler![
       commands::check_for_updates,
       commands::apply_update,
-      commands::set_channel
+      commands::set_channel,
+      commands::get_current_version
     ])
-    .setup(|app, api| {
-      let ota_self_update = runtime::init(app, api)?;
+    .setup(move |app, api| {
+      let ota_self_update = runtime::init(app, api, overlay_assets.clone(), embedded_assets)?;
       app.manage(ota_self_update);
       Ok(())
     })

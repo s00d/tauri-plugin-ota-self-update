@@ -38,7 +38,7 @@ This project provides:
 
 - Self-hosted OTA model (no vendor cloud lock-in).
 - Update channels (`stable`, `beta`, custom).
-- JS API: `check()`, `checkWithMeta()`, `setChannel()`, `Update.apply()`.
+- JS API: `check()`, `checkWithMeta()`, `setChannel()`, `getCurrentVersion()`, `Update.apply()`.
 - Rust-side access via `app.ota_self_update()`.
 - Single Rust runtime is used on all targets (no separate Kotlin/Swift OTA bridge required).
 - Multiple publish targets: GitHub Releases, Bitbucket Downloads, S3-compatible, custom HTTP server.
@@ -137,12 +137,14 @@ GitHub mode note:
 ### Frontend flow
 
 ```ts
-import { check, setChannel } from "tauri-plugin-ota-self-update-api";
+import { check, getCurrentVersion, setChannel } from "tauri-plugin-ota-self-update-api";
 
 await setChannel("stable");
 const update = await check();
 if (update) {
   const applyResult = await update.apply();
+  const version = await getCurrentVersion();
+  console.log("Effective OTA version:", version.effectiveVersion, "source:", version.source);
   if (applyResult.status === "appliedNow") {
     location.reload();
   }
@@ -152,7 +154,7 @@ if (update) {
 ### Periodic check example
 
 ```ts
-import { check, setChannel } from "tauri-plugin-ota-self-update-api";
+import { check, getCurrentVersion, setChannel } from "tauri-plugin-ota-self-update-api";
 
 const CHECK_INTERVAL_MS = 15 * 60 * 1000; // every 15 minutes
 
@@ -163,6 +165,8 @@ async function checkAndApplyUpdate() {
     if (!update) return;
 
     const result = await update.apply();
+    const version = await getCurrentVersion();
+    console.log("OTA effective version:", version.effectiveVersion);
     // For softReload policy, refresh immediately to use new assets.
     if (result.status === "appliedNow") {
       location.reload();
@@ -183,9 +187,12 @@ setInterval(() => {
 ### Auto-update on startup example (silent)
 
 ```ts
-import { check, setChannel } from "tauri-plugin-ota-self-update-api";
+import { check, getCurrentVersion, setChannel } from "tauri-plugin-ota-self-update-api";
 
 export async function runStartupOta() {
+  // shows effective version from plugin (native or OTA)
+  console.log(await getCurrentVersion());
+
   await setChannel("stable");
   const update = await check();
   if (!update) return;
@@ -195,7 +202,8 @@ export async function runStartupOta() {
     // Soft reload policy: activate now.
     location.reload();
   }
-  // Next launch policy: no reload required, assets activate on next app start.
+  // Next launch policy: assets are already cached as active OTA payload and
+  // will be used on next app start automatically.
 }
 ```
 
@@ -415,7 +423,7 @@ OTA_PUBLISH_MODE=server \
 OTA_BASE_URL=http://127.0.0.1:8080 \
 OTA_SERVER_TOKEN=super-secret \
 OTA_CHANNEL=stable \
-OTA_VERSION=0.2.0 \
+OTA_VERSION=0.2.1 \
 OTA_RELEASE_STATUS=released \
 OTA_DIST_DIR=examples/tauri-app/dist \
 pnpm run ota:publish
@@ -428,7 +436,7 @@ OTA_PUBLISH_MODE=server \
 OTA_BASE_URL=http://127.0.0.1:8080 \
 OTA_SERVER_TOKEN=super-secret \
 OTA_CHANNEL=beta \
-OTA_VERSION=0.2.0-beta.1 \
+OTA_VERSION=0.2.1-beta.1 \
 OTA_RELEASE_STATUS=draft \
 OTA_DIST_DIR=examples/tauri-app/dist \
 pnpm run ota:publish

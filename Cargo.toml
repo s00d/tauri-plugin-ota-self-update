@@ -1,6 +1,6 @@
 [package]
 name = "tauri-plugin-ota-self-update"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["s00d"]
 description = "Self-hosted OTA updates for Tauri v2 web assets."
 edition = "2021"
@@ -22,6 +22,8 @@ url = "2.5"
 flate2 = "1.0"
 tar = "0.4"
 semver = "1.0"
+tempfile = "3"
+walkdir = "2"
 
 [build-dependencies]
 tauri-plugin = { version = "2.6.2", features = ["build"] }

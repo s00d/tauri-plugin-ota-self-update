@@ -69,3 +69,13 @@ pub struct ApplyResult {
   pub version: String,
   pub activation_policy: ActivationPolicy,
 }
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CurrentVersion {
+  pub native_version: String,
+  #[serde(default)]
+  pub ota_version: Option<String>,
+  pub effective_version: String,
+  pub source: String,
+}
