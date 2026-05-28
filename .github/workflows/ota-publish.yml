@@ -71,7 +71,11 @@ jobs:
         shell: bash
         run: |
           CHANNEL="${{ inputs.channel }}"
-          VERSION="${{ inputs.version }}"
+          if [ "${GITHUB_EVENT_NAME}" = "push" ]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            VERSION="${{ inputs.version }}"
+          fi
           if [ -z "$CHANNEL" ]; then CHANNEL="stable"; fi
           if [ -z "$VERSION" ]; then VERSION="0.0.0-ci-${GITHUB_RUN_NUMBER}"; fi
           echo "channel=$CHANNEL" >> "$GITHUB_OUTPUT"
@@ -122,6 +126,7 @@ jobs:
           path: examples/tauri-app/dist
 
   build-example-tauri-release:
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.publish == 'true'
     permissions:
       contents: write
     strategy:
@@ -178,7 +183,7 @@ jobs:
         id: vars
         shell: bash
         run: |
-          VERSION="${{ github.event.inputs.version }}"
+          VERSION="${{ inputs.version }}"
           if [ -z "$VERSION" ]; then VERSION="0.1.2-ci-${GITHUB_RUN_NUMBER}"; fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
       - name: Build and publish Tauri app release assets
@@ -200,7 +205,7 @@ jobs:
 
   verify-marketplace-action:
     runs-on: ubuntu-latest
-    needs: [build-example, build-example-tauri-release]
+    needs: [build-example]
     steps:
       - uses: actions/checkout@v4
       - name: Download dist artifact
@@ -213,7 +218,11 @@ jobs:
         shell: bash
         run: |
           CHANNEL="${{ github.event.inputs.channel }}"
-          VERSION="${{ github.event.inputs.version }}"
+          if [ "${GITHUB_EVENT_NAME}" = "push" ]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            VERSION="${{ github.event.inputs.version }}"
+          fi
           if [ -z "$CHANNEL" ]; then CHANNEL="stable"; fi
           if [ -z "$VERSION" ]; then VERSION="0.0.0-ci-${GITHUB_RUN_NUMBER}"; fi
           echo "channel=$CHANNEL" >> "$GITHUB_OUTPUT"
@@ -234,7 +243,7 @@ jobs:
 
   publish-example-to-current-repo:
     runs-on: ubuntu-latest
-    needs: [build-example, build-example-tauri-release, verify-marketplace-action]
+    needs: [build-example, verify-marketplace-action]
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.publish == 'true'
     permissions:
       contents: write
