@@ -14,11 +14,13 @@ on:
       publish:
         description: "Publish OTA assets to current repo"
         required: true
-        default: "false"
+        type: boolean
+        default: false
       build_tauri_release:
         description: "Build example Tauri binaries and draft release"
         required: true
-        default: "false"
+        type: boolean
+        default: false
 
 jobs:
   build-example:
@@ -49,7 +51,7 @@ jobs:
           path: examples/tauri-app/dist
 
   build-example-tauri-release:
-    if: github.event.inputs.build_tauri_release == 'true'
+    if: inputs.build_tauri_release
     permissions:
       contents: write
     strategy:
@@ -119,7 +121,7 @@ jobs:
   publish-example-to-current-repo:
     runs-on: ubuntu-latest
     needs: [build-example]
-    if: github.event.inputs.publish == 'true'
+    if: inputs.publish
     permissions:
       contents: write
     steps:
