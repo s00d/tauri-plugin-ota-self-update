@@ -8,6 +8,7 @@ use base64::Engine;
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use semver::Version;
 use tauri::{AppHandle, Manager, Runtime};
+use url::Url;
 
 use crate::{models::*, Config, Error, Result};
 
@@ -24,6 +25,21 @@ pub struct OtaCore<R: Runtime> {
 }
 
 impl<R: Runtime> OtaCore<R> {
+  fn prerelease_for_channel(channel: &str) -> bool {
+    channel == "beta"
+  }
+
+  fn semver_desc(left: &str, right: &str) -> std::cmp::Ordering {
+    match (Version::parse(left), Version::parse(right)) {
+      (Ok(l), Ok(r)) => r.cmp(&l),
+      _ => right.cmp(left),
+    }
+  }
+
+  fn channel(cfg: &Config) -> &str {
+    cfg.channel.as_deref().unwrap_or("stable")
+  }
+
   pub fn new(app: AppHandle<R>, config: Config) -> Self {
     Self {
       app,
@@ -40,8 +56,141 @@ impl<R: Runtime> OtaCore<R> {
 
   fn manifest_url(cfg: &Config) -> String {
     let base = cfg.base_url.trim_end_matches('/');
-    let channel = cfg.channel.as_deref().unwrap_or("stable");
+    let channel = Self::channel(cfg);
     format!("{base}/manifest/{channel}.json")
+  }
+
+  fn github_repo_from_base_url(base_url: &str) -> Option<(String, String)> {
+    let url = Url::parse(base_url).ok()?;
+    if !url.host_str().is_some_and(|host| host.eq_ignore_ascii_case("github.com")) {
+      return None;
+    }
+    let mut parts = url
+      .path_segments()
+      .map(|segments| segments.filter(|s| !s.is_empty()))
+      .into_iter()
+      .flatten();
+    let owner = parts.next()?.to_string();
+    let repo = parts.next()?.trim_end_matches(".git").to_string();
+    if owner.is_empty() || repo.is_empty() {
+      return None;
+    }
+    Some((owner, repo))
+  }
+
+  async fn fetch_manifest_from_github(
+    client: &reqwest::Client,
+    owner: &str,
+    repo: &str,
+    channel: &str,
+  ) -> Result<Vec<u8>> {
+    #[derive(serde::Deserialize)]
+    struct GitHubAsset {
+      name: String,
+      browser_download_url: String,
+    }
+
+    #[derive(serde::Deserialize)]
+    struct GitHubRelease {
+      draft: bool,
+      prerelease: bool,
+      assets: Vec<GitHubAsset>,
+    }
+
+    let releases_url = format!("https://api.github.com/repos/{owner}/{repo}/releases?per_page=100");
+    let releases: Vec<GitHubRelease> = client
+      .get(releases_url)
+      .header("Accept", "application/vnd.github+json")
+      .header("User-Agent", "tauri-plugin-ota-self-update")
+      .send()
+      .await?
+      .error_for_status()?
+      .json()
+      .await?;
+
+    let want_prerelease = channel == "beta";
+    let selected = releases
+      .iter()
+      .find(|release| !release.draft && release.prerelease == want_prerelease)
+      .ok_or_else(|| {
+        Error::Message(format!(
+          "no suitable GitHub release found for channel '{channel}' (repo: {owner}/{repo})"
+        ))
+      })?;
+
+    let manifest_name = format!("{channel}.json");
+    let manifest_asset = selected
+      .assets
+      .iter()
+      .find(|asset| asset.name == manifest_name)
+      .ok_or_else(|| {
+        Error::Message(format!(
+          "manifest asset '{manifest_name}' not found in selected GitHub release (repo: {owner}/{repo})"
+        ))
+      })?;
+
+    let bytes = client
+      .get(&manifest_asset.browser_download_url)
+      .send()
+      .await?
+      .error_for_status()?
+      .bytes()
+      .await?
+      .to_vec();
+    Ok(bytes)
+  }
+
+  async fn fetch_manifest_from_release_index(
+    client: &reqwest::Client,
+    cfg: &Config,
+    channel: &str,
+  ) -> Result<Option<Vec<u8>>> {
+    #[derive(serde::Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct ReleaseIndexEntry {
+      version: String,
+      manifest_url: String,
+      #[serde(default)]
+      prerelease: bool,
+      #[serde(default)]
+      status: Option<String>,
+      #[serde(default)]
+      channel: Option<String>,
+    }
+
+    let index_url = format!("{}/releases.json", cfg.base_url.trim_end_matches('/'));
+    let response = client.get(index_url).send().await?;
+    if response.status() == reqwest::StatusCode::NOT_FOUND {
+      return Ok(None);
+    }
+    let entries: Vec<ReleaseIndexEntry> = response.error_for_status()?.json().await?;
+    let wanted_prerelease = Self::prerelease_for_channel(channel);
+    let mut candidates: Vec<_> = entries
+      .into_iter()
+      .filter(|entry| {
+        let channel_ok = entry.channel.as_deref().is_none_or(|value| value == channel);
+        let status_ok = entry
+          .status
+          .as_deref()
+          .is_none_or(|value| value.eq_ignore_ascii_case("released"));
+        channel_ok && status_ok && entry.prerelease == wanted_prerelease
+      })
+      .collect();
+
+    if candidates.is_empty() {
+      return Ok(None);
+    }
+    candidates.sort_by(|a, b| Self::semver_desc(&a.version, &b.version));
+    let latest = &candidates[0];
+    let bytes = client
+      .get(&latest.manifest_url)
+      .send()
+      .await?
+      .error_for_status()?
+      .bytes()
+      .await?
+      .to_vec();
+    Ok(Some(bytes))
   }
 
   async fn http_client(cfg: &Config) -> Result<reqwest::Client> {
@@ -85,8 +234,19 @@ impl<R: Runtime> OtaCore<R> {
     let cv = Version::parse(current);
     let iv = Version::parse(incoming);
     match (cv, iv) {
-      (Ok(current), Ok(incoming)) => incoming > current,
-      _ => incoming != current,
+      (Ok(current), Ok(incoming)) => {
+        // Keep update tracks isolated:
+        // - release can update only to release
+        // - pre-release can update only to pre-release
+        let current_is_prerelease = !current.pre.is_empty();
+        let incoming_is_prerelease = !incoming.pre.is_empty();
+        if current_is_prerelease != incoming_is_prerelease {
+          return false;
+        }
+        incoming > current
+      }
+      // If versions are not valid semver, reject update to avoid cross-track surprises.
+      _ => false,
     }
   }
 
@@ -98,17 +258,26 @@ impl<R: Runtime> OtaCore<R> {
   pub async fn check_for_updates(&self) -> Result<CheckResult> {
     let cfg = self.config.lock().await.clone();
     let client = Self::http_client(&cfg).await?;
-    let manifest_url = Self::manifest_url(&cfg);
+    let channel = Self::channel(&cfg);
     let current_version = self.app.package_info().version.to_string();
 
-    let manifest_bytes = client
-      .get(manifest_url)
-      .send()
-      .await?
-      .error_for_status()?
-      .bytes()
-      .await?
-      .to_vec();
+    let manifest_bytes = if let Some((owner, repo)) = Self::github_repo_from_base_url(&cfg.base_url) {
+      Self::fetch_manifest_from_github(&client, &owner, &repo, channel).await?
+    } else {
+      if let Some(index_manifest) = Self::fetch_manifest_from_release_index(&client, &cfg, channel).await? {
+        index_manifest
+      } else {
+        let manifest_url = Self::manifest_url(&cfg);
+        client
+          .get(manifest_url)
+          .send()
+          .await?
+          .error_for_status()?
+          .bytes()
+          .await?
+          .to_vec()
+      }
+    };
     let manifest: UpdateManifest = serde_json::from_slice(&manifest_bytes)?;
     Self::verify_signature(&cfg.pubkey, &manifest_bytes, &manifest.signature)?;
 

@@ -107,6 +107,11 @@ tauri::Builder::default()
 }
 ```
 
+GitHub mode note:
+- Set `baseUrl` to `https://github.com/<owner>/<repo>`.
+- `stable` channel resolves the latest non-prerelease release asset `stable.json`.
+- `beta` channel resolves the latest prerelease asset `beta.json`.
+
 `activationPolicy` values:
 - `nextLaunch`: apply assets and activate them on next app start.
 - `softReload`: apply assets and mark as active immediately for runtime reload flows.
@@ -183,6 +188,11 @@ Modes:
 - `s3`: uses AWS SDK v3 (`@aws-sdk/client-s3`).
 - `server`: uses `axios` PUT to upload archive + manifest.
 
+For `s3` and `server` modes, publisher also maintains `releases.json` index:
+- `stable` resolves latest non-prerelease entry.
+- `beta` resolves latest prerelease entry.
+- Client falls back to `manifest/<channel>.json` when `releases.json` is unavailable.
+
 ---
 
 ## GitHub Action
@@ -213,6 +223,114 @@ Primary inputs:
 - `dry_run` (`true|false`)
 
 Validation workflow example is provided at `.github/workflows/ota-publish.yml`.
+
+---
+
+## Self-hosted OTA server (Docker)
+
+This repository includes a ready-to-run OTA server in `server/`.
+
+- Server source: `scripts-src/ota-server.ts`
+- Dashboard UI source: `scripts-src/server-ui/index.html`, `scripts-src/server-ui/dashboard.js`
+- Built server runtime: `server/ota-server.cjs`
+- Built dashboard assets: `server/dist/*`
+- Docker image spec: `server/Dockerfile`
+- Docker Compose: `server/docker-compose.yml`
+- Upload auth: `Authorization: Bearer <OTA_SERVER_TOKEN>`
+
+Quick start:
+
+```bash
+pnpm run build:scripts
+docker build -t ota-self-update-server -f server/Dockerfile server
+docker run --rm -p 8080:8080 \
+  -e OTA_SERVER_TOKEN=super-secret \
+  -v "$(pwd)/.ota-server-data:/data/ota" \
+  ota-self-update-server
+```
+
+Local run without Docker:
+
+```bash
+pnpm run build:scripts
+OTA_SERVER_TOKEN=super-secret \
+PORT=8080 \
+OTA_DATA_DIR=.ota-server-data \
+pnpm run server:start
+```
+
+Generate OpenAPI file on startup:
+
+```bash
+OTA_SERVER_TOKEN=super-secret \
+OTA_OPENAPI_OUTPUT=.ota-server-data/openapi.json \
+pnpm run server:start
+```
+
+OpenAPI endpoint is always available at:
+
+```text
+GET /openapi.json
+```
+
+Interactive online docs:
+
+```text
+GET /docs
+```
+
+Then set plugin config:
+
+```json
+{
+  "plugins": {
+    "ota-self-update": {
+      "baseUrl": "https://your-server.example.com",
+      "channel": "stable"
+    }
+  }
+}
+```
+
+Use publisher action/script in `mode=server` with `server_token` equal to `OTA_SERVER_TOKEN`.
+Server dashboard:
+- `GET /` - web UI with token auth for release lifecycle operations.
+- `GET /api/info` - release counters and runtime info (requires token).
+- `GET /api/releases` - full release list (requires token).
+- `POST /api/releases/:channel/:version/confirm` - publish draft.
+- `POST /api/releases/:channel/:version/revoke` - revoke published version.
+- `DELETE /api/releases/:channel/:version?purge=true` - remove entry and OTA files.
+
+Publish to this server (manual example):
+
+```bash
+OTA_PUBLISH_MODE=server \
+OTA_BASE_URL=http://127.0.0.1:8080 \
+OTA_SERVER_TOKEN=super-secret \
+OTA_CHANNEL=stable \
+OTA_VERSION=0.1.1 \
+OTA_RELEASE_STATUS=released \
+OTA_DIST_DIR=examples/tauri-app/dist \
+pnpm run ota:publish
+```
+
+Beta/pre-release example:
+
+```bash
+OTA_PUBLISH_MODE=server \
+OTA_BASE_URL=http://127.0.0.1:8080 \
+OTA_SERVER_TOKEN=super-secret \
+OTA_CHANNEL=beta \
+OTA_VERSION=0.1.2-beta.1 \
+OTA_RELEASE_STATUS=draft \
+OTA_DIST_DIR=examples/tauri-app/dist \
+pnpm run ota:publish
+```
+
+The server stores:
+- `manifest/stable.json` and `manifest/beta.json`
+- `<channel>/ota-dist-<version>.tar.gz`
+- `releases.json` index (used by client to resolve latest stable/beta)
 
 ---
 

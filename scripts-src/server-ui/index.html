@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>OTA Server Dashboard</title>
+  <style>
+    body { font-family: Inter, system-ui, sans-serif; margin: 0; background: #0b1020; color: #e7ecff; }
+    .wrap { max-width: 1100px; margin: 0 auto; padding: 24px; }
+    .card { background: #131a34; border: 1px solid #26315f; border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+    input, button { border-radius: 8px; border: 1px solid #31407a; background: #0e1530; color: #e7ecff; padding: 8px; }
+    button { cursor: pointer; margin-right: 6px; margin-top: 6px; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; background: #0f1731; border-radius: 10px; overflow: hidden; }
+    th, td { padding: 12px 10px; border-bottom: 1px solid #26315f; text-align: left; vertical-align: middle; }
+    th { color: #9db1ff; font-weight: 600; }
+    tr:hover td { background: #162044; }
+    .muted { opacity: .75; }
+    .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+    .pill.stable { background: #173b2f; color: #65e7b0; border: 1px solid #2c6f58; }
+    .pill.beta { background: #392f1a; color: #f8d784; border: 1px solid #7c6430; }
+    .pill.released { background: #173b2f; color: #65e7b0; border: 1px solid #2c6f58; }
+    .pill.draft { background: #2b2d38; color: #c2c7da; border: 1px solid #4a4f66; }
+    .pill.revoked { background: #3d1f2a; color: #ff9fb6; border: 1px solid #8b3c56; }
+    .actions { display: flex; flex-wrap: wrap; gap: 6px; }
+    .btn { margin: 0; padding: 6px 10px; font-size: 12px; border-radius: 7px; }
+    .btn.confirm { border-color: #2c6f58; color: #65e7b0; }
+    .btn.revoke { border-color: #8b3c56; color: #ff9fb6; }
+    .btn.draft { border-color: #4a4f66; color: #c2c7da; }
+    .btn.delete { border-color: #9a3c3c; color: #ffb0b0; }
+    .empty { text-align: center; color: #94a3d8; padding: 20px; }
+    .topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+    .toplink { color: #9db1ff; text-decoration: none; border: 1px solid #31407a; padding: 6px 10px; border-radius: 8px; font-size: 13px; }
+    .toplink:hover { background: #1a2753; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <h1 style="margin: 0;">OTA Server Dashboard</h1>
+      <div style="display:flex; gap:8px;">
+        <a class="toplink" href="/openapi.json" target="_blank" rel="noreferrer">OpenAPI JSON</a>
+        <a class="toplink" href="/docs" target="_blank" rel="noreferrer">Swagger UI</a>
+      </div>
+    </div>
+    <div class="card">
+      <label>Admin token:
+        <input id="token" type="password" placeholder="Bearer token" />
+      </label>
+      <button id="login">Authorize</button>
+      <span class="muted">Until token is authorized, all API actions are blocked.</span>
+    </div>
+    <div class="card" id="infoCard" style="display:none;">
+      <h3>Info</h3>
+      <div id="info" class="muted">Authorization required</div>
+    </div>
+    <div class="card" id="releasesCard" style="display:none;">
+      <h3>Releases</h3>
+      <table>
+        <thead>
+          <tr><th>Version</th><th>Channel</th><th>Status</th><th>Date</th><th>Actions</th></tr>
+        </thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+  </div>
+  <script src="/dashboard.js"></script>
+</body>
+</html>

@@ -2,10 +2,10 @@
 import { createHash } from 'node:crypto'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { basename, join, resolve } from 'node:path'
-import axios from 'axios'
-import { Octokit } from '@octokit/rest'
-import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3'
+import { GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3'
+import { Readable } from 'node:stream'
 import * as tar from 'tar'
+import { prerelease, rcompare, valid as isValidSemver } from 'semver'
 
 type PublishMode = 'github' | 's3' | 'server'
 
@@ -17,6 +17,15 @@ interface Manifest {
   archiveSignature: string
   archiveSha256: string
   archiveUrl: string
+}
+
+interface ReleaseIndexEntry {
+  version: string
+  channel: string
+  prerelease: boolean
+  status: 'draft' | 'released' | 'revoked'
+  pubDate: string
+  manifestUrl: string
 }
 
 function env(name: string, fallback = ''): string {
@@ -48,6 +57,26 @@ function parseRepo(repo: string): { owner: string; repo: string } {
   return { owner, repo: name }
 }
 
+function githubReleaseAssetUrl(targetRepo: string, tag: string, assetName: string): string {
+  const { owner, repo } = parseRepo(targetRepo)
+  return `https://github.com/${owner}/${repo}/releases/download/${tag}/${assetName}`
+}
+
+async function fetchJson<T>(url: string, init: RequestInit): Promise<T> {
+  const response = await fetch(url, init)
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status} for ${url}`)
+  }
+  return (await response.json()) as T
+}
+
+async function fetchVoid(url: string, init: RequestInit): Promise<void> {
+  const response = await fetch(url, init)
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status} for ${url}`)
+  }
+}
+
 async function publishToGitHub(archivePath: string, manifestPath: string, version: string, notes: string): Promise<void> {
   const targetRepo = required('OTA_TARGET_REPO')
   const token = env('OTA_GITHUB_TOKEN', env('GITHUB_TOKEN', env('GH_TOKEN', ''))).trim()
@@ -57,47 +86,73 @@ async function publishToGitHub(archivePath: string, manifestPath: string, versio
 
   const { owner, repo } = parseRepo(targetRepo)
   const tag = env('OTA_RELEASE_TAG', '').trim() || `ota-${version}`
-  const octokit = new Octokit({ auth: token })
-
-  let releaseId: number
-  try {
-    const existing = await octokit.repos.getReleaseByTag({ owner, repo, tag })
-    releaseId = existing.data.id
-  } catch {
-    const created = await octokit.repos.createRelease({
-      owner,
-      repo,
-      tag_name: tag,
-      name: tag,
-      body: notes
-    })
-    releaseId = created.data.id
+  const apiHeaders = {
+    Authorization: `Bearer ${token}`,
+    Accept: 'application/vnd.github+json',
+    'User-Agent': 'tauri-plugin-ota-self-update'
   }
 
-  const assets = (await octokit.repos.listReleaseAssets({ owner, repo, release_id: releaseId })).data
+  type GitHubRelease = { id: number }
+  type GitHubAsset = { id: number; name: string }
+  let releaseId: number
+  try {
+    const existing = await fetchJson<GitHubRelease>(`https://api.github.com/repos/${owner}/${repo}/releases/tags/${tag}`, {
+      method: 'GET',
+      headers: apiHeaders
+    })
+    releaseId = existing.id
+  } catch {
+    const created = await fetchJson<GitHubRelease>(`https://api.github.com/repos/${owner}/${repo}/releases`, {
+      method: 'POST',
+      headers: {
+        ...apiHeaders,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        tag_name: tag,
+        name: tag,
+        body: notes
+      })
+    })
+    releaseId = created.id
+  }
+
+  const assets = await fetchJson<GitHubAsset[]>(`https://api.github.com/repos/${owner}/${repo}/releases/${releaseId}/assets`, {
+    method: 'GET',
+    headers: apiHeaders
+  })
   const targets = [basename(archivePath), basename(manifestPath)]
   for (const asset of assets) {
     if (targets.includes(asset.name)) {
-      await octokit.repos.deleteReleaseAsset({ owner, repo, asset_id: asset.id })
+      await fetchVoid(`https://api.github.com/repos/${owner}/${repo}/releases/assets/${asset.id}`, {
+        method: 'DELETE',
+        headers: apiHeaders
+      })
     }
   }
 
   const archiveData = await readFile(archivePath)
-  await octokit.repos.uploadReleaseAsset({
-    owner,
-    repo,
-    release_id: releaseId,
-    name: basename(archivePath),
-    data: archiveData as unknown as string
+  await fetchVoid(`https://uploads.github.com/repos/${owner}/${repo}/releases/${releaseId}/assets?name=${encodeURIComponent(
+    basename(archivePath)
+  )}`, {
+    method: 'POST',
+    headers: {
+      ...apiHeaders,
+      'Content-Type': 'application/gzip'
+    },
+    body: archiveData
   })
 
   const manifestData = await readFile(manifestPath)
-  await octokit.repos.uploadReleaseAsset({
-    owner,
-    repo,
-    release_id: releaseId,
-    name: basename(manifestPath),
-    data: manifestData as unknown as string
+  await fetchVoid(`https://uploads.github.com/repos/${owner}/${repo}/releases/${releaseId}/assets?name=${encodeURIComponent(
+    basename(manifestPath)
+  )}`, {
+    method: 'POST',
+    headers: {
+      ...apiHeaders,
+      'Content-Type': 'application/json'
+    },
+    body: manifestData
   })
 }
 
@@ -125,6 +180,8 @@ async function publishToS3(archivePath: string, manifestPath: string, channel: s
       ContentType: 'application/json'
     })
   )
+
+  await updateS3ReleaseIndex(client, bucket, region, channel, manifestPath)
 }
 
 async function publishToServer(archivePath: string, manifestPath: string, channel: string): Promise<void> {
@@ -134,21 +191,149 @@ async function publishToServer(archivePath: string, manifestPath: string, channe
   const archiveUrl = `${normalizedBaseUrl}/${channel}/${basename(archivePath)}`
 
   const archiveBody = await readFile(archivePath)
-  await axios.put(archiveUrl, archiveBody, {
+  await fetchVoid(archiveUrl, {
+    method: 'PUT',
     headers: {
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/gzip'
     },
-    maxBodyLength: Infinity
+    body: archiveBody
   })
 
   const manifestBody = await readFile(manifestPath)
-  await axios.put(manifestUrl, manifestBody, {
+  await fetchVoid(manifestUrl, {
+    method: 'PUT',
     headers: {
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json'
     },
-    maxBodyLength: Infinity
+    body: manifestBody
+  })
+
+  await updateServerReleaseIndex(normalizedBaseUrl, channel, token, manifestPath)
+}
+
+function isPrerelease(version: string): boolean {
+  return Array.isArray(prerelease(version))
+}
+
+function sortDescByVersion(left: ReleaseIndexEntry, right: ReleaseIndexEntry): number {
+  const lv = isValidSemver(left.version)
+  const rv = isValidSemver(right.version)
+  if (lv && rv) {
+    return rcompare(lv, rv)
+  }
+  return right.version.localeCompare(left.version)
+}
+
+async function readJsonFile<T>(path: string): Promise<T> {
+  return JSON.parse(await readFile(path, 'utf8')) as T
+}
+
+function upsertReleaseEntry(entries: ReleaseIndexEntry[], incoming: ReleaseIndexEntry): ReleaseIndexEntry[] {
+  const filtered = entries.filter((entry) => !(entry.channel === incoming.channel && entry.version === incoming.version))
+  filtered.push(incoming)
+  filtered.sort(sortDescByVersion)
+  return filtered
+}
+
+async function s3BodyToString(body: unknown): Promise<string> {
+  if (typeof body === 'string') return body
+  if (body instanceof Readable) {
+    const chunks: Buffer[] = []
+    for await (const chunk of body) {
+      chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk)
+    }
+    return Buffer.concat(chunks).toString('utf8')
+  }
+  if (body && typeof (body as { transformToString?: () => Promise<string> }).transformToString === 'function') {
+    return (body as { transformToString: () => Promise<string> }).transformToString()
+  }
+  return '[]'
+}
+
+async function loadS3ReleaseIndex(client: S3Client, bucket: string): Promise<ReleaseIndexEntry[]> {
+  try {
+    const response = await client.send(
+      new GetObjectCommand({
+        Bucket: bucket,
+        Key: 'releases.json'
+      })
+    )
+    const raw = await s3BodyToString(response.Body)
+    return JSON.parse(raw) as ReleaseIndexEntry[]
+  } catch {
+    return []
+  }
+}
+
+async function updateS3ReleaseIndex(
+  client: S3Client,
+  bucket: string,
+  region: string,
+  channel: string,
+  manifestPath: string
+): Promise<void> {
+  const manifest = await readJsonFile<Manifest>(manifestPath)
+  const releaseStatusRaw = env('OTA_RELEASE_STATUS', 'released').trim().toLowerCase()
+  const releaseStatus: ReleaseIndexEntry['status'] =
+    releaseStatusRaw === 'draft' || releaseStatusRaw === 'revoked' ? releaseStatusRaw : 'released'
+  const current = await loadS3ReleaseIndex(client, bucket)
+  const next = upsertReleaseEntry(current, {
+    version: manifest.version,
+    channel,
+    prerelease: isPrerelease(manifest.version),
+    status: releaseStatus,
+    pubDate: manifest.pubDate,
+    manifestUrl: `https://${bucket}.s3.${region}.amazonaws.com/manifest/${channel}.json`
+  })
+  await client.send(
+    new PutObjectCommand({
+      Bucket: bucket,
+      Key: 'releases.json',
+      Body: JSON.stringify(next, null, 2),
+      ContentType: 'application/json'
+    })
+  )
+}
+
+async function loadServerReleaseIndex(baseUrl: string): Promise<ReleaseIndexEntry[]> {
+  try {
+    const data = await fetchJson<ReleaseIndexEntry[]>(`${baseUrl}/releases.json`, {
+      method: 'GET'
+    })
+    return Array.isArray(data) ? data : []
+  } catch {
+    return []
+  }
+}
+
+async function updateServerReleaseIndex(
+  baseUrl: string,
+  channel: string,
+  token: string,
+  manifestPath: string
+): Promise<void> {
+  const manifest = await readJsonFile<Manifest>(manifestPath)
+  const releaseStatusRaw = env('OTA_RELEASE_STATUS', 'released').trim().toLowerCase()
+  const releaseStatus: ReleaseIndexEntry['status'] =
+    releaseStatusRaw === 'draft' || releaseStatusRaw === 'revoked' ? releaseStatusRaw : 'released'
+  const current = await loadServerReleaseIndex(baseUrl)
+  const next = upsertReleaseEntry(current, {
+    version: manifest.version,
+    channel,
+    prerelease: isPrerelease(manifest.version),
+    status: releaseStatus,
+    pubDate: manifest.pubDate,
+    manifestUrl: `${baseUrl}/manifest/${channel}.json`
+  })
+  await fetchVoid(`${baseUrl}/releases.json`, {
+    method: 'PUT',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(next, null, 2)
   })
 }
 
@@ -166,6 +351,12 @@ async function main(): Promise<void> {
   await createArchive(distDir, archivePath)
 
   const archiveHash = await sha256(archivePath)
+  const githubTag = env('OTA_RELEASE_TAG', '').trim() || `ota-${version}`
+  const archiveUrl =
+    mode === 'github'
+      ? githubReleaseAssetUrl(required('OTA_TARGET_REPO'), githubTag, archiveName)
+      : `${baseUrl.replace(/\/$/, '')}/${channel}/${archiveName}`
+
   const manifest: Manifest = {
     version,
     notes: env('OTA_NOTES', `OTA build ${version}`),
@@ -173,7 +364,7 @@ async function main(): Promise<void> {
     signature: env('OTA_MANIFEST_SIGNATURE', ''),
     archiveSignature: env('OTA_ARCHIVE_SIGNATURE', ''),
     archiveSha256: archiveHash,
-    archiveUrl: `${baseUrl.replace(/\/$/, '')}/${channel}/${archiveName}`
+    archiveUrl
   }
   const manifestPath = join(outDir, `${channel}.json`)
   await writeFile(manifestPath, JSON.stringify(manifest, null, 2))

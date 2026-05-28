@@ -1,0 +1,16 @@
+services:
+  ota-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ota-self-update-server
+    ports:
+      - "8080:8080"
+    environment:
+      OTA_SERVER_TOKEN: ${OTA_SERVER_TOKEN:-super-secret}
+      OTA_DATA_DIR: /data/ota
+      OTA_MAX_UPLOAD_MB: ${OTA_MAX_UPLOAD_MB:-200}
+      OTA_OPENAPI_OUTPUT: /data/ota/openapi.json
+    volumes:
+      - ../.ota-server-data:/data/ota
+    restart: unless-stopped

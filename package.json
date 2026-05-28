@@ -1,6 +1,6 @@
 {
   "name": "tauri-plugin-ota-self-update-api",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "author": "s00d",
   "description": "JavaScript API for tauri-plugin-ota-self-update - self-hosted OTA web asset updates for Tauri v2 apps.",
   "license": "MIT OR Apache-2.0",
@@ -33,7 +33,9 @@
     "build:api": "rollup -c",
     "build:scripts": "pnpm --filter @tauri-plugin-ota-self-update/scripts run build",
     "build": "pnpm run build:api && pnpm run build:scripts",
-    "ota:publish": "node scripts/ota-publish.js",
+    "example:dev": "pnpm --dir examples/tauri-app tauri dev",
+    "server:start": "node server/ota-server.cjs",
+    "ota:publish": "node scripts/ota-publish.cjs",
     "prepublishOnly": "pnpm run build",
     "pretest": "pnpm run build"
   },

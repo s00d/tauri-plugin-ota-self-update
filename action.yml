@@ -64,6 +64,10 @@ inputs:
     description: "If true, prints commands without executing uploads"
     required: false
     default: "false"
+  release_status:
+    description: "Release status in index: released | draft | revoked"
+    required: false
+    default: "released"
 
 runs:
   using: "composite"
@@ -86,4 +90,5 @@ runs:
         OTA_MANIFEST_SIGNATURE: ${{ inputs.manifest_signature }}
         OTA_ARCHIVE_SIGNATURE: ${{ inputs.archive_signature }}
         OTA_DRY_RUN: ${{ inputs.dry_run }}
-      run: node "${{ github.action_path }}/scripts/ota-publish.js"
+        OTA_RELEASE_STATUS: ${{ inputs.release_status }}
+      run: node "${{ github.action_path }}/scripts/ota-publish.cjs"

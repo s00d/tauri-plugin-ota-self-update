@@ -1,6 +1,6 @@
 {
   "productName": "tauri-app",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "identifier": "com.tauri.dev",
   "build": {
     "beforeDevCommand": "pnpm dev",
@@ -36,7 +36,7 @@
   },
   "plugins": {
     "ota-self-update": {
-      "baseUrl": "https://example.com/ota",
+      "baseUrl": "https://github.com/s00d/tauri-plugin-ota-self-update",
       "pubkey": "",
       "channel": "stable",
       "timeoutSecs": 30,

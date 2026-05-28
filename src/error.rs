@@ -28,6 +28,8 @@ pub enum Error {
   InvalidHeaderName,
   #[error("invalid header value in requestHeaders")]
   InvalidHeaderValue,
+  #[error("{0}")]
+  Message(String),
   #[cfg(mobile)]
   #[error(transparent)]
   PluginInvoke(#[from] tauri::plugin::mobile::PluginInvokeError),

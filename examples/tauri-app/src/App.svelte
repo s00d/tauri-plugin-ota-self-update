@@ -1,12 +1,22 @@
 <script>
   import Greet from './lib/Greet.svelte'
+  import { getVersion } from '@tauri-apps/api/app'
   import { check, checkWithMeta } from 'tauri-plugin-ota-self-update-api'
 
 	let response = $state('')
+  let appVersion = $state('unknown')
 
 	function updateResponse(returnValue) {
 		response += `[${new Date().toLocaleTimeString()}] ` + (typeof returnValue === 'string' ? returnValue : JSON.stringify(returnValue)) + '<br>'
 	}
+
+  getVersion()
+    .then((version) => {
+      appVersion = version
+    })
+    .catch(() => {
+      appVersion = 'unknown'
+    })
 
 	async function checkAndApply() {
 		try {
@@ -25,6 +35,7 @@
 
 <main class="container">
   <h1>Welcome to Tauri!</h1>
+  <p>App version: {appVersion}</p>
 
   <div class="row">
     <a href="https://vite.dev" target="_blank">

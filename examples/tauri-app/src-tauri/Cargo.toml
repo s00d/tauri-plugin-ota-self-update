@@ -1,6 +1,6 @@
 [package]
 name = "tauri-app"
-version = "0.1.0"
+version = "0.1.1"
 description = "A Tauri App"
 authors = ["you"]
 license = ""
@@ -15,10 +15,10 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [build-dependencies]
-tauri-build = { version = "2.6.2", default-features = false }
+tauri-build = { version = "2.6.2", default-features = false , features = [] }
 
 [dependencies]
-tauri = { version = "2.11.2" }
+tauri = { version = "2.11.2", features = [] }
 tauri-plugin-ota-self-update = { path = "../../../" }
 serde_json = "1"
 
